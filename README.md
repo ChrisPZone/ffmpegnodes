@@ -2,13 +2,7 @@
 
 A desktop node editor for ffmpeg, built with Tauri 2, React and React Flow. You wire up inputs, filters, encoders and outputs, and the app turns the graph into a single ffmpeg command. It checks that command before it runs and then runs it with live progress.
 
-```
-                       [Video Encoder Parameters]   (shared settings)
-                                   │
-Input ──frames──▶ [Scale] ───────▶ [Video Encoder] ──packets──┐
-      ──frames──▶ [Loudness] ────▶ [Audio Encoder] ──packets──┼──▶ [Output: out.mkv]
-      ──packets (stream copy) ────────────────────────────────┘
-```
+![GUI Demo](media/GUI_01.png)
 
 ## Concepts
 
