@@ -132,6 +132,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
           {capsError ?? (caps ? `${caps.version} — ${caps.encoders.length} encoders, ${caps.muxers.length} muxers, ${caps.filters.length} filters` : "checking…")}
         </p>
         {!ipc.isTauri() && <p className="muted small">Browser mode: ffmpeg is mocked. Run inside Tauri (pnpm tauri dev) for real probing and encoding.</p>}
+        <p className="muted small">Not affiliated with or endorsed by the FFmpeg project. FFmpeg is a trademark of Fabrice Bellard.</p>
         <div className="row end">
           <button onClick={onClose}>Close</button>
           <button

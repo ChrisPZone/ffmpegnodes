@@ -107,3 +107,7 @@ cd src-tauri && cargo test
 | `src/ipc/` | typed Tauri bridge and the browser mock |
 | `src-tauri/src/ffmpeg.rs` | runs ffprobe/ffmpeg (argument lists only, never a shell), streams `-progress`, cancel, GPU list, filter help |
 | `src-tauri/src/letterbox.rs` | black-bar detection on sampled frames |
+
+## Trademark
+
+Not affiliated with or endorsed by the FFmpeg project. FFmpeg is a trademark of Fabrice Bellard.
