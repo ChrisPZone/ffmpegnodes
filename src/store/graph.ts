@@ -8,6 +8,7 @@ import { parseFilterHelp, type FilterHelp } from "../nodes/defs/generic";
 import { letterboxOptions, letterboxSource } from "../model/letterbox";
 import { checkConnection } from "../validation/connections";
 import { duplicateNodes } from "./duplicate";
+import { readStored, storageKey } from "./storage";
 
 export type AppNode = Node<NodeData>;
 
@@ -68,14 +69,14 @@ interface State {
   showToast: (msg?: string) => void;
 }
 
-const SETTINGS_KEY = "ffng.settings";
+const SETTINGS_KEY = storageKey("settings");
 /** Parsed filter help per ffmpeg path + filter name, shared by all nodes of a session. */
 const helpCache = new Map<string, Promise<FilterHelp>>();
-const AUTOSAVE_KEY = "ffng.autosave";
+const AUTOSAVE_KEY = storageKey("autosave");
 
 function loadJSON<T>(key: string): T | undefined {
   try {
-    const v = localStorage.getItem(key);
+    const v = readStored(key);
     return v ? (JSON.parse(v) as T) : undefined;
   } catch {
     return undefined;
@@ -304,7 +305,7 @@ export const useGraph = create<State>((set, get) => ({
 
 export function toProject(nodes: AppNode[], edges: Edge[]): ProjectFile {
   return {
-    app: "ffmpeg-node-gui",
+    app: "ffmpegnodes",
     version: PROJECT_VERSION,
     nodes: nodes.map((n) => {
       const data = { ...n.data } as Record<string, unknown>;
@@ -317,7 +318,8 @@ export function toProject(nodes: AppNode[], edges: Edge[]): ProjectFile {
 
 export function parseProject(text: string): ProjectFile {
   const p = JSON.parse(text) as ProjectFile;
-  if (p.app !== "ffmpeg-node-gui" || !Array.isArray(p.nodes) || !Array.isArray(p.edges)) throw new Error("Not an ffmpeg node graph file.");
+  const known = p.app === "ffmpegnodes" || p.app === "ffmpeg-node-gui"; // the latter: saved before the rename
+  if (!known || !Array.isArray(p.nodes) || !Array.isArray(p.edges)) throw new Error("Not an ffmpegnodes graph file.");
   if (p.version > PROJECT_VERSION) throw new Error(`Project version ${p.version} is newer than this app supports.`);
   // fill in options added after a file was saved
   const defaults = newInputData("").options;
@@ -345,7 +347,7 @@ export function startAutosave() {
 export function restoreAutosave(): boolean {
   const text = (() => {
     try {
-      return localStorage.getItem(AUTOSAVE_KEY);
+      return readStored(AUTOSAVE_KEY);
     } catch {
       return null;
     }

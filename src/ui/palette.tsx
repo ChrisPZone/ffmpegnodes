@@ -2,12 +2,13 @@ import { useReactFlow } from "@xyflow/react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Capabilities } from "../model/types";
 import { useGraph } from "../store/graph";
+import { readStored, storageKey } from "../store/storage";
 import { allPaletteItems, createFromSpec, DEFAULT_OPEN, matchItems, paletteSections, type PaletteItem, type PaletteSpec } from "./paletteItems";
 
 export { createFromSpec, type PaletteSpec } from "./paletteItems";
 
-export const PALETTE_MIME = "application/x-ffng-node";
-const OPEN_KEY = "ffng.palette.open";
+export const PALETTE_MIME = "application/x-ffmpegnodes-node";
+const OPEN_KEY = storageKey("palette.open");
 
 /** True when caps are known and this item's ffmpeg filter is not in the build. */
 export function isMissing(it: PaletteItem, caps?: Capabilities): boolean {
@@ -22,7 +23,7 @@ export function usePaletteItems(): PaletteItem[] {
 
 function loadOpen(): Record<string, boolean> {
   try {
-    return JSON.parse(localStorage.getItem(OPEN_KEY) ?? "{}") ?? {};
+    return JSON.parse(readStored(OPEN_KEY) ?? "{}") ?? {};
   } catch {
     return {};
   }

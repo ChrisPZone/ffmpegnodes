@@ -234,7 +234,7 @@ mod tests {
         if std::env::var("FFMPEG_E2E").is_err() {
             return;
         }
-        let dir = std::env::temp_dir().join(format!("ffng-lb-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("ffmpegnodes-lb-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let make = |name: &str, vf: &str| {
             let p = dir.join(name);
@@ -262,7 +262,7 @@ mod tests {
         let uneven = make("uneven.mkv", "pad=1280:930:0:100:black");
         let r = detect("ffmpeg", &uneven, 10.0, 1280, 930, &LetterboxOptions::default()).unwrap();
         assert_eq!((r.top, r.bottom), (100, 110));
-        if std::env::var("FFNG_KEEP_LB").is_err() {
+        if std::env::var("FFMPEGNODES_KEEP_LB").is_err() {
             let _ = std::fs::remove_dir_all(&dir);
         }
     }

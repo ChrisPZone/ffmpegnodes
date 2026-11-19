@@ -265,7 +265,8 @@ export const PROJECT_VERSION = 1;
 
 export interface ProjectFile extends Graph {
   version: number;
-  app: "ffmpeg-node-gui";
+  /** "ffmpeg-node-gui" in files saved before the rename. */
+  app: "ffmpegnodes" | "ffmpeg-node-gui";
 }
 
 // ---------------------------------------------------------------- capabilities

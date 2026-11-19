@@ -1,11 +1,11 @@
 [package]
-name = "ffmpeg-node-gui"
+name = "ffmpegnodes"
 version = "0.1.0"
 description = "Node-based GUI for ffmpeg"
 edition = "2021"
 
 [lib]
-name = "ffmpeg_node_gui_lib"
+name = "ffmpegnodes_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

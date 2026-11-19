@@ -1,4 +1,4 @@
-# ffmpeg Node GUI
+# ffmpegnodes
 
 A node editor for ffmpeg (Tauri 2 + React + React Flow). You build a graph, and the app turns it into one ffmpeg command and runs it.
 

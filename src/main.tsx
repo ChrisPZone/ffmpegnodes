@@ -8,7 +8,7 @@ import { useGraph } from "./store/graph";
 initApp();
 
 // Dev-only handle for debugging from the browser console.
-if (import.meta.env.DEV) (window as unknown as { __ffng: unknown }).__ffng = useGraph;
+if (import.meta.env.DEV) (window as unknown as { __ffmpegnodes: unknown }).__ffmpegnodes = useGraph;
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

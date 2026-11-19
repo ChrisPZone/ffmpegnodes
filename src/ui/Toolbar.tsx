@@ -28,7 +28,7 @@ export function Toolbar() {
 
   const saveAs = async () => {
     const st = useGraph.getState();
-    const path = await ipc.pickSaveFile(st.projectPath ?? "graph.ffgraph.json", ipc.PROJECT_FILTERS);
+    const path = await ipc.pickSaveFile(st.projectPath ?? "graph.ffmpegnodes.json", ipc.PROJECT_FILTERS);
     if (!path) return;
     await save(path);
   };

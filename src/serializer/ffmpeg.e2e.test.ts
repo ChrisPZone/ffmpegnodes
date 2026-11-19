@@ -48,7 +48,7 @@ describe.skipIf(!ENABLED)("real ffmpeg", () => {
   let sampleProbe: ProbeResult;
 
   beforeAll(() => {
-    dir = mkdtempSync(join(tmpdir(), "ffng-e2e-"));
+    dir = mkdtempSync(join(tmpdir(), "ffmpegnodes-e2e-"));
     const srt = join(dir, "subs.srt");
     writeFileSync(srt, "1\n00:00:00,000 --> 00:00:01,500\nHello\n\n2\n00:00:01,500 --> 00:00:03,000\nWorld\n");
     sample = join(dir, "sample.mkv");

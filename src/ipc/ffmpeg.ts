@@ -90,7 +90,7 @@ export const MEDIA_FILTERS: DialogFilter[] = [
   { name: "All files", extensions: ["*"] },
 ];
 
-export const PROJECT_FILTERS: DialogFilter[] = [{ name: "ffmpeg node graph", extensions: ["json"] }];
+export const PROJECT_FILTERS: DialogFilter[] = [{ name: "ffmpegnodes graph", extensions: ["json"] }];
 
 export async function pickOpenFile(filters: DialogFilter[] = MEDIA_FILTERS): Promise<string | null> {
   if (!isTauri()) return window.prompt("Path to file (browser mode: probing is mocked)", "C:/videos/in.mkv");
@@ -104,7 +104,7 @@ export async function pickOpenFile(filters: DialogFilter[] = MEDIA_FILTERS): Pro
  */
 export async function confirmDialog(message: string, opts: { title?: string; okLabel?: string; cancelLabel?: string } = {}): Promise<boolean> {
   if (!isTauri()) return window.confirm(message);
-  return ask(message, { title: opts.title ?? "ffmpeg node gui", kind: "warning", okLabel: opts.okLabel ?? "OK", cancelLabel: opts.cancelLabel ?? "Cancel" });
+  return ask(message, { title: opts.title ?? "ffmpegnodes", kind: "warning", okLabel: opts.okLabel ?? "OK", cancelLabel: opts.cancelLabel ?? "Cancel" });
 }
 
 export async function pickSaveFile(defaultPath?: string, filters?: DialogFilter[]): Promise<string | null> {
