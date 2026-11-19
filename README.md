@@ -1,56 +1,115 @@
 # ffmpegnodes
 
-A node editor for ffmpeg (Tauri 2 + React + React Flow). You build a graph, and the app turns it into one ffmpeg command and runs it.
+A desktop node editor for ffmpeg, built with Tauri 2, React and React Flow. You wire up inputs, filters, encoders and outputs, and the app turns the graph into a single ffmpeg command. It checks that command before it runs and then runs it with live progress.
 
 ```
-Input ──frames──▶ [scale] ──▶ [Video Encoder] ──packets──┐
-      ──frames──▶ [loudnorm] ▶ [Audio Encoder] ──packets──┼▶ [Output: out.mp4]
-      ──packets (stream copy)────────────────────────────┘
+                       [Video Encoder Parameters]   (shared settings)
+                                   │
+Input ──frames──▶ [Scale] ───────▶ [Video Encoder] ──packets──┐
+      ──frames──▶ [Loudness] ────▶ [Audio Encoder] ──packets──┼──▶ [Output: out.mkv]
+      ──packets (stream copy) ────────────────────────────────┘
 ```
 
-- **Round pads = frames** (decoded): filters take them in and put them out, and encoders take them in.
-- **Square pads = packets** (encoded): encoders put them out and the Output takes them in. Wiring an Input's packet pad straight to an Output gives you `-c copy`.
-- Colors: video is yellow, audio is red, subtitles are blue. A connection is only allowed when the domain and media type match.
+## Concepts
+
+| Pad | Shape | Meaning |
+|---|---|---|
+| **frames** | round | Decoded media. Filters take frames in and put frames out; encoders take them in. |
+| **packets** | diamond, plus a ⬡ icon on the Input | Encoded media. Encoders put packets out and the Output takes them in. Wiring an Input's packet pad straight to the Output is a stream copy (`-c copy`). |
+| **parameters** | small upright rectangle | Encoder settings, sent from an Encoder Parameters node into the top pad of one or more encoders. |
+
+- **Colours:** video is yellow, audio is red and subtitles are blue. Parameter pads and wires use a darker shade of their media colour.
+- **Connections:** a connection is only allowed when the domain and the media type match.
+
+## Features
+
+- **Nodes**
+  - **Input file:** probed with ffprobe. It has one frames pad and one packets pad per stream, labelled with codec, size or channels, and language.
+  - **Filters:**
+    - A curated set with friendly settings: scale, crop, deinterlace, denoise, loudness, downmix, and more.
+    - Every other filter in your ffmpeg build, under "All ffmpeg filters". Their options are read from `ffmpeg -h filter=…`.
+  - **Remove letterbox:** detects black bars at the top and bottom of the video and crops them away.
+  - **Video / Audio / Subtitle Encoder Parameters:** codec and all its options in one node. One node can feed any number of encoders, e.g. five audio tracks with the same AAC settings. Each new encoder gets its own connected parameters node.
+  - **Encoders:** take their settings from a parameters node. Without one they show an error, and their stream is left out of the command.
+  - **Output file:** container, stream order, per-stream language, title and disposition.
+- **Codecs:** libx264/libx265; NVIDIA NVENC (H.264, HEVC, AV1) with GPU selection; AAC, libfdk_aac and Opus; mov_text, srt, ass and WebVTT; plus stream copy.
+- **GPU pipeline:** CUDA decoding, Scale (CUDA), then nvenc. Frames stay on the GPU whenever every step can use them.
+- **Checks before running:**
+  - Formats such as size, pixel format and sample rate are worked out along each wire.
+  - Problems appear in the *Problems* tab.
+  - One-click fixes, e.g. "Use yuv420p10le" or "Decode with cuda". Fixes for encoder settings change the parameters node.
+- **Recode wizard** (*Wizard…* in the toolbar):
+  1. Pick a file.
+  2. Choose video streams, filters, codec and GPU.
+  3. Choose audio streams, filters and codec.
+  4. Choose subtitles and the output file.
+
+  The wizard then builds the complete, wired graph in tidy columns: Input → filters → parameters → encoders → Output.
+- **Editing:**
+  - **Quick-add:** press Tab or double-click the canvas, or drop a wire on empty space to add a node that is already connected.
+  - **Duplicate:** Ctrl+D copies the selected nodes with their settings. Ctrl+Shift+D also copies their incoming wires.
+  - **Projects:** save and open as `.ffmpegnodes.json`, with autosave.
+- **Run:** a live command preview, copyable for PowerShell or other shells; progress, speed and cancel.
 
 ## Prerequisites
 
-- Node 20+ and pnpm
-- Rust (https://rustup.rs). On Windows you also need the MSVC build tools and WebView2. See https://tauri.app/start/prerequisites/
-- `ffmpeg` and `ffprobe` on PATH, or set their paths in the app's ⚙ Settings
+- Node 20+ and pnpm.
+- Rust (https://rustup.rs). On Windows you also need the MSVC build tools and WebView2; see https://tauri.app/start/prerequisites/.
+- `ffmpeg` and `ffprobe`, either on PATH or with their paths set in the app's ⚙ Settings. NVENC and CUDA features need an NVIDIA GPU and an ffmpeg build that includes them.
 
 ## Run
+
+Install the dependencies:
 
 ```bash
 pnpm install
 ```
 
+Start the desktop app:
+
 ```bash
 pnpm tauri dev
 ```
 
-The command above starts the desktop app. To run only the UI in a browser (ffprobe and ffmpeg are mocked):
+UI only, in a browser. Here ffprobe, ffmpeg and letterbox detection are mocked:
 
 ```bash
 pnpm dev
+```
+
+## Test
+
+```bash
+pnpm typecheck
 ```
 
 ```bash
 pnpm test
 ```
 
+End-to-end runs against a real ffmpeg are opt-in. They need `ffmpeg` / `ffprobe` with libx265 on PATH, and the second variable adds the NVENC/CUDA runs:
+
+```bash
+FFMPEG_E2E=1 FFMPEG_E2E_NVENC=1 pnpm test
+```
+
+The Rust side (process handling and letterbox detection):
+
+```bash
+cd src-tauri && cargo test
+```
+
 ## Layout
 
 | Path | What |
 |---|---|
-| `src/serializer/` | graph → ffmpeg argv (filtergraph building, split insertion, chain joining, escaping) |
-| `src/validation/` | connection rules, format negotiation along edges, codec/container compatibility, diagnostics + quick fixes |
-| `src/nodes/defs/` | pad layout per node, filter definitions, encoder schemas |
-| `src/nodes/ui/`, `src/inspector/`, `src/ui/` | React Flow nodes, inspector panel, canvas, dock, toolbar |
-| `src/ipc/` | typed Tauri bridge + browser mock |
-| `src-tauri/src/ffmpeg.rs` | spawns ffprobe/ffmpeg (argv only, never a shell), streams `-progress`, cancel |
-
-## Milestones
-
-- **M1 (this):** a working end-to-end slice with hand-written filters (scale, crop, fps, format, overlay, volume, loudnorm, aresample, amix) and encoder schemas (libx264, libx265, aac, libfdk_aac, libopus, subtitle encoders). Any other encoder gets generic options.
-- **M2:** filter and encoder nodes generated from `ffmpeg -h filter=…` / `-h encoder=…`, presets, two-pass, value nodes.
-- **M3:** batch "repeat zone", `tee` muxer, bitstream filters, chapters, bundled ffmpeg.
+| `src/serializer/` | graph → ffmpeg argv: filtergraph building, split insertion, chain joining, escaping, shell quoting |
+| `src/validation/` | connection rules, format negotiation along wires, codec/container compatibility, diagnostics and quick fixes |
+| `src/model/` | shared types; encoder-parameter resolution, GPU residency, letterbox helpers |
+| `src/nodes/defs/` | pads per node, curated filter definitions, encoder schemas, generic filters from `ffmpeg -h` |
+| `src/nodes/ui/`, `src/inspector/`, `src/ui/` | React Flow nodes, Inspector panel, canvas, palette, quick-add, dock, toolbar |
+| `src/wizard/` | recode wizard: dialog and graph builder with column layout |
+| `src/store/` | zustand store, duplicate, project files, autosave |
+| `src/ipc/` | typed Tauri bridge and the browser mock |
+| `src-tauri/src/ffmpeg.rs` | runs ffprobe/ffmpeg (argument lists only, never a shell), streams `-progress`, cancel, GPU list, filter help |
+| `src-tauri/src/letterbox.rs` | black-bar detection on sampled frames |
