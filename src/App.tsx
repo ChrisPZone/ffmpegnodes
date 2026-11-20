@@ -5,6 +5,8 @@ import { restoreAutosave, startAutosave, useGraph } from "./store/graph";
 import { BottomDock } from "./ui/BottomDock";
 import { Canvas } from "./ui/Canvas";
 import { DerivedProvider } from "./ui/derived";
+import { JobPanels } from "./ui/JobPanels";
+import { installCloseGuard } from "./ui/run";
 import { Palette } from "./ui/palette";
 import { Toolbar } from "./ui/Toolbar";
 
@@ -13,6 +15,7 @@ export function initApp() {
   if (!restoreAutosave()) starterGraph();
   void useGraph.getState().loadCaps();
   startAutosave();
+  installCloseGuard();
 }
 
 function starterGraph() {
@@ -42,6 +45,7 @@ export function App() {
             </div>
             <Inspector />
           </div>
+          <JobPanels />
           {toast && <div className="toast">{toast}</div>}
         </div>
       </DerivedProvider>

@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Main window: core APIs and native file dialogs. ffmpeg/ffprobe and project file IO go through the app's own Rust commands.",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:default"]
+  "permissions": ["core:default", "core:window:allow-destroy", "dialog:default"]
 }

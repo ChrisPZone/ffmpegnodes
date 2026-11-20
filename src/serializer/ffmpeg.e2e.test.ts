@@ -13,6 +13,7 @@ import { validate } from "../validation/diagnostics";
 import { serialize } from "./index";
 import { encoder, pushNode } from "../test/fixtures";
 import { buildRecodeGraph, defaultChoices, type WizardChoices } from "../wizard/build";
+import { OutputInfoParser } from "../ui/jobInfo";
 
 const ENABLED = !!process.env.FFMPEG_E2E;
 
@@ -456,4 +457,21 @@ describe.skipIf(!ENABLED)("real ffmpeg", () => {
     expect(p.streams.map((s) => `${s.codec_type}:${s.codec_name}`)).toEqual(["video:h264", "video:hevc", "audio:aac", "subtitle:subrip"]);
     expect(p.streams[0].width).toBe(640);
   }, 120_000);
+
+  it("job popups read the output streams from real ffmpeg stderr", () => {
+    const out = join(dir, "popup.mkv");
+    const r = spawnSync(
+      "ffmpeg",
+      ["-hide_banner", "-y", "-nostats", "-f", "lavfi", "-i", "testsrc2=s=320x240:r=25:d=0.5", "-f", "lavfi", "-i", "sine=d=0.5:sample_rate=48000",
+        "-c:v", "libx265", "-c:a", "flac", out],
+      { encoding: "utf8" },
+    );
+    expect(r.status).toBe(0);
+    const p = new OutputInfoParser();
+    for (const l of r.stderr.split(/\r?\n/)) p.feed(l);
+    expect(p.files).toEqual([{ index: 0, format: "matroska", path: out }]);
+    expect(p.streams).toHaveLength(2);
+    expect(p.streams[0]).toMatchObject({ media: "video", codec: "hevc", width: 320, height: 240, fps: "25" });
+    expect(p.streams[1]).toMatchObject({ media: "audio", codec: "flac", sampleRate: 48000, channels: "mono" });
+  });
 });

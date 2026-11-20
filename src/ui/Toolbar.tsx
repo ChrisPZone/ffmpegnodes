@@ -2,7 +2,10 @@ import { useState } from "react";
 import * as ipc from "../ipc/ffmpeg";
 import { parseProject, toProject, useGraph } from "../store/graph";
 import { useDerived } from "./derived";
-import { cancelRun, startRun } from "./run";
+import { startRun } from "./run";
+import { statusClass, statusText } from "./JobPanels";
+import { deviceSummary } from "../model/devices";
+import { DEFAULT_ZOOM_STEP, ZOOM_STEP_RANGE } from "./wheelZoom";
 import { WizardDialog } from "../wizard/WizardDialog";
 
 /** Asks before the graph on the canvas is replaced; true when it is empty or the user agrees. */
@@ -11,15 +14,11 @@ export async function confirmDiscard(): Promise<boolean> {
   return ipc.confirmDialog("Discard the current graph?", { title: "Discard graph", okLabel: "Discard", cancelLabel: "Cancel" });
 }
 
-const fmtTime = (s?: number) => {
-  if (s === undefined || !Number.isFinite(s)) return "–";
-  const m = Math.floor(s / 60);
-  return `${m}:${(s % 60).toFixed(1).padStart(4, "0")}`;
-};
-
 export function Toolbar() {
   const { ser, errors } = useDerived();
-  const job = useGraph((s) => s.job);
+  const jobs = useGraph((s) => s.jobs);
+  const focusJob = useGraph((s) => s.focusJob);
+  const gpus = useGraph((s) => s.gpus);
   const caps = useGraph((s) => s.caps);
   const capsError = useGraph((s) => s.capsError);
   const projectPath = useGraph((s) => s.projectPath);
@@ -61,7 +60,6 @@ export function Toolbar() {
     useGraph.getState().setGraph({ nodes: [], edges: [] });
   };
 
-  const pct = job && Number.isFinite(job.progress) ? Math.round(job.progress * 100) : undefined;
   return (
     <header className="toolbar">
       <span className="brand">ffmpeg<b>nodes</b></span>
@@ -72,21 +70,29 @@ export function Toolbar() {
       <button onClick={saveAs}>Save as…</button>
       <span className="project muted" title={projectPath}>{projectPath?.split(/[\\/]/).pop() ?? "unsaved"}</span>
       <span className="spacer" />
-      {job && (
-        <div className={`progress ${job.result ?? ""}`} title={`${job.speed ?? ""} ${job.fps ? `${job.fps} fps` : ""}`}>
-          <div className="bar" style={{ width: `${pct ?? (job.running ? 100 : 0)}%` }} data-indeterminate={pct === undefined && job.running} />
-          <span>
-            {job.running ? `${pct !== undefined ? `${pct}%` : "running"} · ${fmtTime(job.outTime)} · ${job.speed ?? ""}` : job.result}
-          </span>
+      {jobs.length > 0 && (
+        <div className="job-pills">
+          {jobs.map((j) => {
+            const pct = Number.isFinite(j.progress) ? Math.round(j.progress * 100) : undefined;
+            return (
+              <button
+                key={j.id}
+                className={`job-pill ${statusClass(j)}${j.minimized ? " minimized" : ""}`}
+                onClick={() => focusJob(j.id)}
+                title={[`Job ${j.seq}: ${statusText(j)}`, ...(j.devices ? [deviceSummary(j.devices, gpus)] : []), ...j.outputs].join("\n")}
+              >
+                <span className="fill" style={{ width: `${pct ?? (j.running ? 0 : 100)}%` }} />
+                <span>#{j.seq}</span>
+                <span>{j.running ? (pct !== undefined ? `${pct}%` : "running") : statusText(j)}</span>
+                {j.running && j.speed && <span className="muted">{j.speed}</span>}
+              </button>
+            );
+          })}
         </div>
       )}
-      {job?.running ? (
-        <button className="danger" onClick={() => void cancelRun()}>Cancel</button>
-      ) : (
-        <button className="primary" onClick={() => void startRun(ser, errors)} disabled={errors > 0 || ser.outputs.length === 0} title={errors ? "Fix problems first" : "Run ffmpeg"}>
-          ▶ Run
-        </button>
-      )}
+      <button className="primary" onClick={() => void startRun(ser, errors)} disabled={errors > 0 || ser.outputs.length === 0} title={errors ? "Fix problems first" : jobs.some((j) => j.running) ? "Run another job" : "Run ffmpeg"}>
+        ▶ Run
+      </button>
       <button
         className={capsError ? "warn" : ""}
         onClick={() => setSettingsOpen(true)}
@@ -112,6 +118,8 @@ export function Toolbar() {
 function SettingsDialog({ onClose }: { onClose: () => void }) {
   const settings = useGraph((s) => s.settings);
   const setSettings = useGraph((s) => s.setSettings);
+  const setZoomStep = useGraph((s) => s.setZoomStep);
+  const zoomStep = settings.zoomStep ?? DEFAULT_ZOOM_STEP;
   const caps = useGraph((s) => s.caps);
   const capsError = useGraph((s) => s.capsError);
   const [ffmpegPath, setFfmpeg] = useState(settings.ffmpegPath);
@@ -128,6 +136,23 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
           <span className="field-label">ffprobe</span>
           <input type="text" value={ffprobePath} onChange={(e) => setFfprobe(e.target.value)} placeholder="ffprobe (from PATH)" />
         </label>
+        <label className="field">
+          <span className="field-label">Zoom speed</span>
+          <span className="zoom-speed">
+            <span className="muted small">Fine</span>
+            <input
+              type="range"
+              min={ZOOM_STEP_RANGE.min}
+              max={ZOOM_STEP_RANGE.max}
+              step={1}
+              value={zoomStep}
+              onChange={(e) => setZoomStep(Number(e.target.value))}
+              title="Zoom per mouse-wheel notch"
+            />
+            <span className="muted small">Coarse</span>
+            <span className="zoom-speed-value">{zoomStep}% per notch</span>
+          </span>
+        </label>
         <p className={capsError ? "error-text" : "muted small"}>
           {capsError ?? (caps ? `${caps.version} — ${caps.encoders.length} encoders, ${caps.muxers.length} muxers, ${caps.filters.length} filters` : "checking…")}
         </p>
@@ -138,7 +163,7 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
           <button
             className="primary"
             onClick={() => {
-              setSettings({ ffmpegPath, ffprobePath });
+              setSettings({ ...useGraph.getState().settings, ffmpegPath, ffprobePath });
               onClose();
             }}
           >

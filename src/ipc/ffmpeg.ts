@@ -9,6 +9,8 @@ import { mockBackend } from "./mock";
 export interface Settings {
   ffmpegPath: string;
   ffprobePath: string;
+  /** Canvas zoom per mouse-wheel notch, in percent (default 10). UI only. */
+  zoomStep?: number;
 }
 
 export const isTauri = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -81,6 +83,23 @@ export async function runJob(jobId: string, args: string[], s: Settings, h: JobH
 export async function cancelJob(jobId: string): Promise<void> {
   if (!isTauri()) return mockBackend.cancel(jobId);
   await invoke("cancel_job", { jobId });
+}
+
+/**
+ * Calls `allowClose` when the user closes the app window; the window stays open when it
+ * resolves false. Outside Tauri the browser's own "leave page?" prompt is used.
+ */
+export async function guardWindowClose(allowClose: () => Promise<boolean>, busy: () => boolean): Promise<void> {
+  if (!isTauri()) {
+    window.addEventListener("beforeunload", (e) => {
+      if (busy()) e.preventDefault();
+    });
+    return;
+  }
+  const { getCurrentWindow } = await import("@tauri-apps/api/window");
+  await getCurrentWindow().onCloseRequested(async (e) => {
+    if (!(await allowClose())) e.preventDefault();
+  });
 }
 
 type DialogFilter = { name: string; extensions: string[] };

@@ -9,19 +9,35 @@ import { letterboxOptions, letterboxSource } from "../model/letterbox";
 import { checkConnection } from "../validation/connections";
 import { duplicateNodes } from "./duplicate";
 import { readStored, storageKey } from "./storage";
+import type { OutStreamInfo, ProgressInfo } from "../ui/jobInfo";
+import type { JobDevices } from "../model/devices";
 
 export type AppNode = Node<NodeData>;
 
-export interface JobState {
+export interface JobState extends Partial<Omit<ProgressInfo, "progress">> {
   id: string;
+  /** Short number shown in the UI ("Job 2"). */
+  seq: number;
   running: boolean;
+  /** Stop was clicked; ffmpeg is finishing the file. */
+  stopping?: boolean;
   progress: number; // 0..1, NaN when unknown
-  speed?: string;
-  fps?: string;
-  outTime?: number;
+  /** Expected output duration in seconds. */
+  duration?: number;
+  /** Input and output paths as they were when the job started. */
+  inputs: string[];
+  outputs: string[];
+  /** Where the work runs (from the graph at start). */
+  devices?: JobDevices;
+  /** Output streams as ffmpeg reported them on stderr. */
+  streams: OutStreamInfo[];
   log: string[];
   result?: "success" | "failed" | "cancelled";
   startedAt: number;
+  endedAt?: number;
+  minimized?: boolean;
+  /** Stacking order of the popup; the highest is in front. */
+  z: number;
 }
 
 interface State {
@@ -32,7 +48,12 @@ interface State {
   capsError?: string;
   settings: Settings;
   projectPath?: string;
-  job?: JobState;
+  /** Jobs in start order; finished ones stay until their popup is closed. */
+  jobs: JobState[];
+  /** Job whose log the dock shows (defaults to the newest). */
+  logJobId?: string;
+  /** Bumped when a popup asks the dock to show its log. */
+  logNonce: number;
   toast?: string;
   /** Bumped when the whole graph is replaced; the canvas re-fits the view. */
   fitNonce: number;
@@ -64,12 +85,27 @@ interface State {
   gpusError?: string;
   loadGpus: (force?: boolean) => Promise<void>;
   setSettings: (s: Settings) => void;
+  /** Changes only the canvas zoom step (no ffmpeg reload). */
+  setZoomStep: (percent: number) => void;
   setGraph: (g: Graph, projectPath?: string) => void;
-  setJob: (fn: (j: JobState | undefined) => JobState | undefined) => void;
+  addJob: (job: JobState) => void;
+  updateJob: (id: string, fn: (j: JobState) => Partial<JobState>) => void;
+  removeJob: (id: string) => void;
+  /** Brings a job's popup to the front (and restores it when minimized). */
+  focusJob: (id: string) => void;
+  setLogJob: (id?: string) => void;
   showToast: (msg?: string) => void;
 }
 
 const SETTINGS_KEY = storageKey("settings");
+function saveSettings(settings: Settings) {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch {
+    /* ignore */
+  }
+}
+const topZ = (jobs: JobState[]) => jobs.reduce((m, j) => Math.max(m, j.z), 0);
 /** Parsed filter help per ffmpeg path + filter name, shared by all nodes of a session. */
 const helpCache = new Map<string, Promise<FilterHelp>>();
 const AUTOSAVE_KEY = storageKey("autosave");
@@ -118,6 +154,8 @@ export const useGraph = create<State>((set, get) => ({
   nodes: [],
   edges: [],
   fitNonce: 0,
+  jobs: [],
+  logNonce: 0,
   settings: loadJSON<Settings>(SETTINGS_KEY) ?? { ffmpegPath: "", ffprobePath: "" },
 
   onNodesChange: (changes) => {
@@ -280,12 +318,14 @@ export const useGraph = create<State>((set, get) => ({
 
   setSettings: (settings) => {
     set({ settings, gpus: undefined, gpusState: undefined });
-    try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    } catch {
-      /* ignore */
-    }
+    saveSettings(settings);
     void get().loadCaps();
+  },
+
+  setZoomStep: (zoomStep) => {
+    const settings = { ...get().settings, zoomStep };
+    set({ settings });
+    saveSettings(settings);
   },
 
   setGraph: (g, projectPath) => {
@@ -293,7 +333,20 @@ export const useGraph = create<State>((set, get) => ({
     set({ ...reconcile(nodes, g.edges.map((e) => ({ ...e }))), selectedId: undefined, projectPath, fitNonce: get().fitNonce + 1 });
   },
 
-  setJob: (fn) => set({ job: fn(get().job) }),
+  addJob: (job) => set({ jobs: [...get().jobs, { ...job, z: topZ(get().jobs) + 1 }], logJobId: job.id, logNonce: get().logNonce + 1 }),
+  updateJob: (id, fn) => set({ jobs: get().jobs.map((j) => (j.id === id ? { ...j, ...fn(j) } : j)) }),
+  removeJob: (id) => {
+    const { jobs, logJobId } = get();
+    if (jobs.find((j) => j.id === id)?.running) return;
+    set({ jobs: jobs.filter((j) => j.id !== id), logJobId: logJobId === id ? undefined : logJobId });
+  },
+  focusJob: (id) => {
+    const jobs = get().jobs;
+    const j = jobs.find((x) => x.id === id);
+    if (!j || (!j.minimized && j.z === topZ(jobs))) return;
+    set({ jobs: jobs.map((x) => (x.id === id ? { ...x, minimized: false, z: topZ(jobs) + 1 } : x)) });
+  },
+  setLogJob: (logJobId) => set({ logJobId, logNonce: get().logNonce + 1 }),
 
   showToast: (toast) => {
     set({ toast });

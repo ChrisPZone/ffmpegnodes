@@ -10,6 +10,7 @@ import { PALETTE_MIME } from "./palette";
 import { createFromSpec, type PaletteSpec } from "./paletteItems";
 import { QuickAdd, type QuickAddRequest } from "./QuickAdd";
 import { edgeTypes, type PipeEdge } from "./PipeEdge";
+import { MAX_ZOOM, MIN_ZOOM, wheelNotches, zoomAt } from "./wheelZoom";
 
 export function Canvas() {
   const nodes = useGraph((s) => s.nodes);
@@ -91,6 +92,26 @@ export function Canvas() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [openQuick, quick, duplicate]);
+
+  // ---- mouse-wheel zoom: a fixed step per notch (Settings → Zoom speed)
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      const t = e.target as HTMLElement | null;
+      const flow = t?.closest(".react-flow") as HTMLElement | null;
+      // the minimap and controls handle their own wheel; .nowheel marks scrollable parts of nodes
+      if (!flow || t?.closest(".react-flow__minimap, .react-flow__panel, .nowheel")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const r = flow.getBoundingClientRect();
+      const step = useGraph.getState().settings.zoomStep ?? 0;
+      void rf.setViewport(zoomAt(rf.getViewport(), wheelNotches(e.deltaY, e.deltaMode), step, e.clientX - r.left, e.clientY - r.top));
+    };
+    // capture + non-passive: runs before React Flow's handler and may cancel page scrolling
+    el.addEventListener("wheel", onWheel, { capture: true, passive: false });
+    return () => el.removeEventListener("wheel", onWheel, { capture: true });
+  }, [rf]);
 
   // ---- node context menu
   const [menu, setMenu] = useState<{ x: number; y: number; ids: string[] } | null>(null);
@@ -187,7 +208,9 @@ export function Canvas() {
         colorMode="dark"
         fitView
         fitViewOptions={{ maxZoom: 1 }}
-        minZoom={0.2}
+        minZoom={MIN_ZOOM}
+        maxZoom={MAX_ZOOM}
+        zoomOnScroll={false}
         proOptions={{ hideAttribution: true }}
       >
         <Background gap={24} size={1} />

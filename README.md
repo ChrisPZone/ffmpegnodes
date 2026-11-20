@@ -1,8 +1,25 @@
 # ffmpegnodes
 
-A desktop node editor for ffmpeg, built with Tauri 2, React and React Flow. You wire up inputs, filters, encoders and outputs, and the app turns the graph into a single ffmpeg command. It checks that command before it runs and then runs it with live progress.
+**A desktop node editor for ffmpeg!**
 
-![GUI Demo](media/GUI_01.png)
+You wire up inputs, filters, encoders and outputs, and the app turns the graph into a single ffmpeg command. It checks that command before it runs and then runs it with live progress.
+
+- Supports multiple inputs & outputs
+- Supports CUDA decode + filters + encode
+- Includes over 500 filter nodes + parameters
+- Wizard for quick video-recoding node trees
+- Start multiple parallel jobs
+- Save/Load node trees
+
+| ![GUI Demo](media/GUI_main.png) |
+|:---:|
+| *Main Screen & Node Tree* |
+
+| ![GUI Demo](media/GUI_parallel-jobs.png) |
+|:---:|
+| *Multiple Parallel Jobs* |
+
+Built with Tauri 2 (Rust) and React.
 
 ## Concepts
 
@@ -49,7 +66,7 @@ A desktop node editor for ffmpeg, built with Tauri 2, React and React Flow. You 
 
 - Node 20+ and pnpm.
 - Rust (https://rustup.rs). On Windows you also need the MSVC build tools and WebView2; see https://tauri.app/start/prerequisites/.
-- `ffmpeg` and `ffprobe`, either on PATH or with their paths set in the app's ⚙ Settings. NVENC and CUDA features need an NVIDIA GPU and an ffmpeg build that includes them.
+- `ffmpeg` and `ffprobe`: Set their paths in the app's ⚙ Settings. NVENC and CUDA features need an NVIDIA GPU and an ffmpeg build that includes them. Tip: Use static builds!
 
 ## Run
 

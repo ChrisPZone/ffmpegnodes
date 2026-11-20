@@ -2,12 +2,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { defaultFlavor, formatCommand, type ShellFlavor } from "../serializer/shellQuote";
 import { useGraph } from "../store/graph";
 import { useDerived } from "./derived";
+import { splitPath } from "./jobInfo";
 
 type Tab = "command" | "problems" | "log";
 
 export function BottomDock() {
   const { ser, diagnostics, errors } = useDerived();
-  const job = useGraph((s) => s.job);
+  const jobs = useGraph((s) => s.jobs);
+  const logJobId = useGraph((s) => s.logJobId);
+  const logNonce = useGraph((s) => s.logNonce);
+  const setLogJob = useGraph((s) => s.setLogJob);
+  const job = jobs.find((j) => j.id === logJobId) ?? jobs[jobs.length - 1];
+  const running = jobs.filter((j) => j.running).length;
   const select = useGraph((s) => s.select);
   const applyFix = useGraph((s) => s.applyFix);
   const [tab, setTab] = useState<Tab>("command");
@@ -17,12 +23,12 @@ export function BottomDock() {
   const logRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
-    if (job?.running) setTab("log");
-  }, [job?.id, job?.running]);
+    if (logNonce) setTab("log");
+  }, [logNonce]);
   useEffect(() => {
     const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [job?.log.length, tab]);
+  }, [job?.id, job?.log.length, tab]);
 
   const warnings = diagnostics.filter((d) => d.severity === "warning").length;
   return (
@@ -34,9 +40,18 @@ export function BottomDock() {
           {warnings > 0 && <span className="badge badge-warning">{warnings}</span>}
         </button>
         <button className={tab === "log" ? "active" : ""} onClick={() => setTab("log")}>
-          Log {job?.running && <span className="badge badge-info">running</span>}
+          Log {running > 0 && <span className="badge badge-info">{running > 1 ? `${running} running` : "running"}</span>}
         </button>
         <span className="spacer" />
+        {tab === "log" && jobs.length > 1 && (
+          <select value={job?.id} onChange={(e) => setLogJob(e.target.value)} title="Job to show">
+            {jobs.map((j) => (
+              <option key={j.id} value={j.id}>
+                Job {j.seq}: {splitPath(j.outputs[0] ?? "").name} ({j.running ? "running" : j.result})
+              </option>
+            ))}
+          </select>
+        )}
         {tab === "command" && (
           <>
             <select value={flavor} onChange={(e) => setFlavor(e.target.value as ShellFlavor)} title="Quoting style for copy/paste">

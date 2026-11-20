@@ -84,18 +84,32 @@ export const mockBackend = {
   },
   async run(jobId: string, args: string[], h: JobHandlers) {
     h.onLog(`[mock] ffmpeg ${args.join(" ")}`);
+    for (const line of mockOutputLog(args)) h.onLog(line);
     let t = 0;
+    let frame = 0;
     const timer = setInterval(() => {
-      t += 0.5;
+      const speed = 1.1 + Math.random() * 0.3;
+      t = Math.min(12, t + 0.25 * speed);
+      frame = Math.round(t * 25);
       const end = t >= 12;
-      h.onProgress({ out_time_us: String(Math.round(t * 1e6)), speed: "4.2x", fps: "120", progress: end ? "end" : "continue" });
+      h.onProgress({
+        frame: String(frame),
+        fps: (25 * speed).toFixed(2),
+        bitrate: `${(2400 + Math.random() * 400).toFixed(1)}kbits/s`,
+        total_size: String(Math.round(t * 330_000)),
+        out_time_us: String(Math.round(t * 1e6)),
+        dup_frames: "0",
+        drop_frames: "0",
+        speed: `${speed.toFixed(2)}x`,
+        progress: end ? "end" : "continue",
+      });
       if (end) {
         clearInterval(timer);
         timers.delete(jobId);
         h.onLog("[mock] done");
         h.onDone(true, 0);
       }
-    }, 120);
+    }, 250);
     timers.set(jobId, { timer, h });
   },
   async cancel(jobId: string) {
@@ -103,8 +117,9 @@ export const mockBackend = {
     if (!t) return;
     clearInterval(t.timer);
     timers.delete(jobId);
-    t.h.onLog("[mock] cancelled");
-    t.h.onDone(false, 255);
+    t.h.onLog("[mock] stopped with q");
+    // like the real "q": ffmpeg finalizes the file and exits normally
+    t.h.onDone(true, 0);
   },
   async read(path: string) {
     const v = files.get(path) ?? localStorage.getItem(`mockfile:${path}`);
@@ -120,3 +135,20 @@ export const mockBackend = {
     }
   },
 };
+
+/** Fake "Output #0 ... Stream #0:0: Video: ..." stderr lines, from the -c:v / -c:a options and the last argument. */
+function mockOutputLog(args: string[]): string[] {
+  const codecOf = (enc: string) => (enc === "copy" ? "h264" : CAPS.encoders.find((e) => e.name === enc)?.codec ?? enc);
+  const out = args[args.length - 1] ?? "out.mp4";
+  const ext = out.split(".").pop() ?? "mp4";
+  const lines = [`Output #0, ${ext === "mkv" ? "matroska" : ext}, to '${out}':`, "  Metadata:", "    encoder         : Lavf-mock"];
+  let i = 0;
+  for (let k = 0; k < args.length - 1; k++) {
+    const a = args[k];
+    if (/^-c:v(:|$)/.test(a)) lines.push(`  Stream #0:${i++}: Video: ${codecOf(args[k + 1])} (Main), yuv420p10le(tv, progressive), 1920x1080 [SAR 1:1 DAR 16:9], q=2-31, 25 fps, 1k tbn`);
+    else if (/^-c:a(:|$)/.test(a)) lines.push(`  Stream #0:${i++}: Audio: ${codecOf(args[k + 1])}, 48000 Hz, stereo, fltp, 192 kb/s`);
+    else if (/^-c:s(:|$)/.test(a)) lines.push(`  Stream #0:${i++}(eng): Subtitle: ${codecOf(args[k + 1])}`);
+  }
+  lines.push("Press [q] to stop, [?] for help");
+  return lines;
+}

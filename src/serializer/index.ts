@@ -37,7 +37,8 @@ export interface SerializeResult {
   diagnostics: Diagnostic[];
   jobs: StreamJob[];
   inputOrder: string[];
-  outputs: { nodeId: string; path: string }[];
+  /** Output files in command order; `streams` are their mapped streams in -map order (ffmpeg's #file:index). */
+  outputs: { nodeId: string; path: string; streams: StreamJob[] }[];
   /** Expected output duration in seconds, for progress display. */
   durationSec?: number;
 }
@@ -209,6 +210,7 @@ export function serialize(input: Graph): SerializeResult {
     if (!m.data.path.trim()) {
       diagnostics.push({ severity: "error", nodeId: m.id, message: "Output has no file name." });
     }
+    const mapped: StreamJob[] = [];
     for (const j of mine) {
       const spec = `${MEDIA_LETTER[j.media]}:${j.outIndex}`;
       if (j.source.kind === "copy") {
@@ -228,6 +230,7 @@ export function serialize(input: Graph): SerializeResult {
         }
         outArgs.push(...encoderArgs(enc.data, spec, { gpuFrames: encoderOnGpuFrames(graph, residency, enc.id) }));
       }
+      mapped.push(j);
       const slot = m.data.slots.find((s) => s.id === j.slotId)!;
       if (slot.tag.trim()) outArgs.push(`-tag:${spec}`, slot.tag.trim());
       if (slot.language.trim()) outArgs.push(`-metadata:s:${spec}`, `language=${slot.language.trim()}`);
@@ -241,7 +244,7 @@ export function serialize(input: Graph): SerializeResult {
       if (kv.key.trim()) outArgs.push("-metadata", `${kv.key.trim()}=${kv.value}`);
     }
     outArgs.push(m.data.path.trim());
-    outputs.push({ nodeId: m.id, path: m.data.path.trim() });
+    outputs.push({ nodeId: m.id, path: m.data.path.trim(), streams: mapped });
     if (mine.filter((j) => j.source.kind === "encode").length > 0) {
       const encoders = mine.flatMap((j) => (j.source.kind === "encode" ? [j.source.encoderId] : []));
       const shared = encoders.filter((id) => jobs.some((o) => o.muxerId !== m.id && o.source.kind === "encode" && o.source.encoderId === id));
