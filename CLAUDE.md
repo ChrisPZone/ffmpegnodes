@@ -14,7 +14,7 @@ ffmpegnodes: a Tauri 2 + React 19 + React Flow (@xyflow/react) node editor that 
   1. Bump the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, then run `cargo check` to update `Cargo.lock`.
   2. Commit, push `main`, and push a tag `vX.Y.Z`.
   3. `.github/workflows/release.yml` builds Windows, macOS and Linux installers into a **draft** release.
-  4. When it finishes, publish the draft with release notes.
+  4. When it finishes, publish the draft with release notes: a "What's new" section, then the install notes exactly as written in `releaseBody` in `release.yml`.
   - `.github/workflows/test.yml` runs typecheck and the tests on pushes to `main`.
 
 ## Architecture rules

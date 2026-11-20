@@ -57,9 +57,13 @@ jobs:
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
           releaseName: ffmpegnodes ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
+          # Install notes for every release; keep them at the end of the release notes.
           releaseBody: |
-            Unsigned builds. ffmpeg and ffprobe are not included: install them and put them on PATH, or set their paths in ⚙ Settings.
-            macOS: right-click the app → Open the first time. Windows: SmartScreen → More info → Run anyway.
+            ## Install notes
+            - Unsigned builds
+            - ffmpeg and ffprobe are not included: install them and set their paths in ⚙ Settings. Use static builds.
+            - macOS: right-click the app → Open the first time
+            - Windows: SmartScreen → More info → Run anyway
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
