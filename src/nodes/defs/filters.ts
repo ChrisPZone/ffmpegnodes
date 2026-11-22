@@ -11,6 +11,18 @@ export interface FilterParamDef extends ParamDef {
   always?: boolean;
   /** UI-only: drives `build`, never emitted as an option. */
   ui?: boolean;
+  /**
+   * Where the help popup finds this param in the ffmpeg docs. Default: the def's `ffName` and
+   * the param's name (none for `ui` params). `false`: no ffmpeg option behind it.
+   */
+  doc?: { filter?: string; option: string } | false;
+}
+
+/** The ffmpeg filter and option a param's help comes from, if any. */
+export function paramDocRef(def: Pick<FilterDef, "ffName">, p: FilterParamDef): { filter: string; option: string } | undefined {
+  if (p.doc === false) return undefined;
+  if (p.doc) return { filter: p.doc.filter ?? def.ffName, option: p.doc.option };
+  return p.ui ? undefined : { filter: def.ffName, option: p.name };
 }
 
 export type FilterCategory =
@@ -165,8 +177,8 @@ export const FILTERS: FilterDef[] = [
     keywords: ["letterbox", "black bars", "autocrop", "cropdetect", "detect", "crop"],
     description: "Detects black bars at the top and bottom (from frames spread over the file) and crops them away.",
     params: [
-      { name: "top", label: "Top bar (px)", type: "int", default: 0, min: 0, face: true },
-      { name: "bottom", label: "Bottom bar (px)", type: "int", default: 0, min: 0, face: true },
+      { name: "top", label: "Top bar (px)", type: "int", default: 0, min: 0, face: true, doc: false },
+      { name: "bottom", label: "Bottom bar (px)", type: "int", default: 0, min: 0, face: true, doc: false },
       { name: "samples", label: "Frames to sample", type: "int", default: 9, min: 1, max: 50, ui: true, description: "Detection: how many frames to grab." },
       { name: "startPct", label: "From (%)", type: "float", default: 10, min: 0, max: 100, step: 1, ui: true, description: "Detection: skip intros and logos before this point." },
       { name: "endPct", label: "To (%)", type: "float", default: 90, min: 0, max: 100, step: 1, ui: true, description: "Detection: skip credits after this point." },
@@ -541,8 +553,8 @@ export const FILTERS: FilterDef[] = [
     keywords: ["unsharp", "sharpness", "blur", "detail"],
     description: "Unsharp mask. Positive amount sharpens, negative blurs.",
     params: [
-      { name: "amount", label: "Amount", type: "float", default: 1, min: -2, max: 5, step: 0.1, ui: true, face: true },
-      { name: "size", label: "Radius", type: "enum", default: "5", ui: true, options: opts(["3", "small (3×3)"], ["5", "medium (5×5)"], ["7", "large (7×7)"], ["9", "very large (9×9)"]) },
+      { name: "amount", label: "Amount", type: "float", default: 1, min: -2, max: 5, step: 0.1, ui: true, face: true, doc: { option: "luma_amount" } },
+      { name: "size", label: "Radius", type: "enum", default: "5", ui: true, options: opts(["3", "small (3×3)"], ["5", "medium (5×5)"], ["7", "large (7×7)"], ["9", "very large (9×9)"]), doc: { option: "luma_msize_x" } },
       { name: "chroma", label: "Also chroma", type: "bool", default: false, ui: true },
     ],
     inputs: () => [vIn()],
@@ -563,9 +575,9 @@ export const FILTERS: FilterDef[] = [
     keywords: ["banding", "gradient", "posterization"],
     description: "Remove banding in smooth gradients (sky, dark scenes). Useful before 8-bit encodes of 10-bit sources.",
     params: [
-      { name: "threshold", label: "Threshold", type: "float", default: 0.02, min: 0.003, max: 0.5, step: 0.001, ui: true, face: true },
-      { name: "range", label: "Range (px)", type: "int", default: 16, min: 1, max: 64, ui: true },
-      { name: "blur", label: "Blur", type: "bool", default: true, ui: true },
+      { name: "threshold", label: "Threshold", type: "float", default: 0.02, min: 0.003, max: 0.5, step: 0.001, ui: true, face: true, doc: { option: "1thr" } },
+      { name: "range", label: "Range (px)", type: "int", default: 16, min: 1, max: 64, ui: true, doc: { option: "range" } },
+      { name: "blur", label: "Blur", type: "bool", default: true, ui: true, doc: { option: "blur" } },
     ],
     inputs: () => [vIn()],
     outputs: () => [vOut()],
@@ -986,8 +998,8 @@ export const FILTERS: FilterDef[] = [
     description: "Join two clips, fading the end of the first into the start of the second.",
     params: [
       { name: "d", label: "Duration (s)", type: "string", default: "1", always: true, face: true },
-      { name: "c1", label: "Fade-out curve", type: "enum", default: "tri", options: FADE_CURVES },
-      { name: "c2", label: "Fade-in curve", type: "enum", default: "tri", options: FADE_CURVES },
+      { name: "c1", label: "Fade-out curve", type: "enum", default: "tri", options: FADE_CURVES, doc: { option: "curve1" } },
+      { name: "c2", label: "Fade-in curve", type: "enum", default: "tri", options: FADE_CURVES, doc: { option: "curve2" } },
     ],
     inputs: () => [aIn("a", "from"), aIn("b", "to")],
     outputs: () => [aOut()],
@@ -1015,7 +1027,7 @@ export const FILTERS: FilterDef[] = [
     category: "Time",
     keywords: ["sync", "offset", "lip sync", "shift"],
     description: "Delay all channels by the given milliseconds (fix audio that is ahead of the video).",
-    params: [{ name: "ms", label: "Delay (ms)", type: "int", default: 500, min: 0, max: 10000, step: 10, ui: true, face: true }],
+    params: [{ name: "ms", label: "Delay (ms)", type: "int", default: 500, min: 0, max: 10000, step: 10, ui: true, face: true, doc: { option: "delays" } }],
     inputs: () => [aIn()],
     outputs: () => [aOut()],
     build: (p) => `adelay=delays=${Math.max(0, Math.round(Number(p.ms) || 0))}:all=1`,
@@ -1140,8 +1152,10 @@ export const FILTERS: FilterDef[] = [
         positional: true,
         face: true,
         options: opts("8000", "16000", "22050", "32000", "44100", "48000", "96000"),
+        // resampler options are in the ffmpeg-resampler manual, not in filters.texi
+        doc: false,
       },
-      { name: "async", label: "Fix sync drift", type: "bool", default: false },
+      { name: "async", label: "Fix sync drift", type: "bool", default: false, doc: false },
     ],
     inputs: () => [aIn()],
     outputs: () => [aOut()],

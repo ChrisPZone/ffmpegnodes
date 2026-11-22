@@ -3,6 +3,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { ask, open, save } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type { Capabilities, GpuInfo, LetterboxOptions, LetterboxResult, ProbeResult } from "../model/types";
 import { mockBackend } from "./mock";
 
@@ -124,6 +125,16 @@ export async function pickOpenFile(filters: DialogFilter[] = MEDIA_FILTERS): Pro
 export async function confirmDialog(message: string, opts: { title?: string; okLabel?: string; cancelLabel?: string } = {}): Promise<boolean> {
   if (!isTauri()) return window.confirm(message);
   return ask(message, { title: opts.title ?? "ffmpegnodes", kind: "warning", okLabel: opts.okLabel ?? "OK", cancelLabel: opts.cancelLabel ?? "Cancel" });
+}
+
+/** Opens a web page (https only) in the system browser. */
+export async function openExternal(url: string): Promise<void> {
+  if (!/^https:\/\//.test(url)) return;
+  if (!isTauri()) {
+    window.open(url, "_blank", "noopener");
+    return;
+  }
+  await openUrl(url);
 }
 
 export async function pickSaveFile(defaultPath?: string, filters?: DialogFilter[]): Promise<string | null> {

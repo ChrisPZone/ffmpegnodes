@@ -57,10 +57,13 @@ export function GpuSelect({ label, value, onChange, hint }: { label: string; val
   );
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+export function Field({ label, hint, help, children }: { label: string; hint?: string; help?: ReactNode; children: ReactNode }) {
   return (
     <label className="field" title={hint}>
-      <span className="field-label">{label}</span>
+      <span className="field-label">
+        {label}
+        {help}
+      </span>
       <span className="field-control">{children}</span>
       {hint && <span className="field-hint">{hint}</span>}
     </label>
@@ -83,19 +86,19 @@ export function CommitText({ value, onCommit, placeholder }: { value: string; on
   );
 }
 
-export function ParamField({ def, value, onChange }: { def: ParamDef; value: ParamValue | undefined; onChange: (v: ParamValue) => void }) {
+export function ParamField({ def, value, onChange, help }: { def: ParamDef; value: ParamValue | undefined; onChange: (v: ParamValue) => void; help?: ReactNode }) {
   const v = value ?? def.default;
   const label = def.label ?? def.name;
   switch (def.type) {
     case "bool":
       return (
-        <Field label={label} hint={def.description}>
+        <Field label={label} hint={def.description} help={help}>
           <input type="checkbox" checked={Boolean(v)} onChange={(e) => onChange(e.target.checked)} />
         </Field>
       );
     case "enum":
       return (
-        <Field label={label} hint={def.description}>
+        <Field label={label} hint={def.description} help={help}>
           <select value={String(v)} onChange={(e) => onChange(e.target.value)}>
             {!def.options?.some((o) => o.value === String(v)) && <option value={String(v)}>{String(v)}</option>}
             {def.options?.map((o) => (
@@ -109,7 +112,7 @@ export function ParamField({ def, value, onChange }: { def: ParamDef; value: Par
     case "int":
     case "float":
       return (
-        <Field label={label} hint={def.description}>
+        <Field label={label} hint={def.description} help={help}>
           <span className="num">
             {def.min !== undefined && def.max !== undefined && (
               <input
@@ -134,7 +137,7 @@ export function ParamField({ def, value, onChange }: { def: ParamDef; value: Par
       );
     case "file":
       return (
-        <Field label={label} hint={def.description}>
+        <Field label={label} hint={def.description} help={help}>
           <span className="file-field">
             <CommitText value={String(v)} onCommit={onChange} placeholder={def.placeholder} />
             <button
@@ -152,7 +155,7 @@ export function ParamField({ def, value, onChange }: { def: ParamDef; value: Par
       );
     default:
       return (
-        <Field label={label} hint={def.description}>
+        <Field label={label} hint={def.description} help={help}>
           <input type="text" value={String(v)} placeholder={def.placeholder} onChange={(e) => onChange(e.target.value)} />
         </Field>
       );
@@ -179,10 +182,13 @@ export function KVTable({ rows, onChange, keyPlaceholder = "key", valuePlacehold
   );
 }
 
-export function Section({ title, children, collapsed }: { title: string; children: ReactNode; collapsed?: boolean }) {
+export function Section({ title, help, children, collapsed }: { title: string; help?: ReactNode; children: ReactNode; collapsed?: boolean }) {
   return (
     <details className="section" open={!collapsed}>
-      <summary>{title}</summary>
+      <summary>
+        {title}
+        {help}
+      </summary>
       <div className="section-body">{children}</div>
     </details>
   );

@@ -51,6 +51,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # the bundled filter docs (help popups) must match the newest FFmpeg release
+      - run: node scripts/check-filter-docs.mjs
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

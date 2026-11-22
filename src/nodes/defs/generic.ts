@@ -251,7 +251,7 @@ export function genericDef(spec: GenericFilterSpec): FilterDef {
 
   const params: FilterParamDef[] = [
     ...options,
-    ...(help?.timeline ? [{ name: "enable", label: "enable", type: "string" as const, default: "", placeholder: "between(t,5,10)", description: "Timeline: apply only while this expression is non-zero." }] : []),
+    ...(help?.timeline ? [{ name: "enable", label: "enable", type: "string" as const, default: "", placeholder: "between(t,5,10)", description: "Timeline: apply only while this expression is non-zero.", doc: false as const }] : []),
     ...ui,
     { name: RAW_PARAM, label: "Extra options", type: "string", default: "", ui: true, placeholder: "key=value:key2=value2", description: "Appended to the filter's options as written (filtergraph syntax, no extra escaping)." },
   ];

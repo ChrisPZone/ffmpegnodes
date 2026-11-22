@@ -5,6 +5,8 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   clearScreen: false,
+  // the lazily loaded filter docs (src/docs/filterDocs.json) are one ~1 MB chunk on purpose
+  build: { chunkSizeWarningLimit: 1100 },
   server: {
     port: 1420,
     strictPort: true,

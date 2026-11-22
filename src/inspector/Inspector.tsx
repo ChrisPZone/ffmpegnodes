@@ -6,11 +6,13 @@ import { encodersUsing, paramsNodeOf, PARAMS_PAD, resolveEncoder } from "../mode
 import type { EncoderNodeData, EncoderParamsNodeData, FilterNodeData, GNode, InputNodeData, InputOptions, Media, MuxerNodeData, MuxSlot, NodeData } from "../model/types";
 import { encoderDefaults, findPad, newEncoderParamsData, nodeTitle } from "../nodes/defs";
 import { ENCODERS, getEncoderSchema, isParamVisible, withDefaults } from "../nodes/defs/encoders";
+import { paramDocRef } from "../nodes/defs/filters";
 import { filterDefOf } from "../nodes/defs/generic";
 import { LETTERBOX_ID } from "../model/letterbox";
 import { useGraph } from "../store/graph";
 import { useDerived } from "../ui/derived";
 import { COMMON_FORMATS, isMp4Family, resolveFormat } from "../validation/compat";
+import { FilterHelpContent, HelpButton, OptionHelp } from "./HelpPopover";
 import { CommitText, Field, GpuSelect, KVTable, ParamField, Section } from "./widgets";
 
 export function Inspector() {
@@ -225,14 +227,20 @@ function FilterInspector({ id, d }: { id: string; d: FilterNodeData }) {
   const [optQuery, setOptQuery] = useState("");
   const def = filterDefOf(d);
   if (!def) return <p className="error-text">Unknown filter {d.defId}</p>;
-  const field = (p: (typeof def.params)[number]) => (
-    <ParamField key={p.name} def={p} value={d.params[p.name]} onChange={(v) => update({ params: { ...d.params, [p.name]: v } })} />
-  );
+  const binary = d.generic?.help?.options;
+  const field = (p: (typeof def.params)[number]) => {
+    const ref = paramDocRef(def, p);
+    const help = ref && (
+      <HelpButton label={`Help for ${ref.option}`}>{() => <OptionHelp filter={ref.filter} option={ref.option} binary={binary?.find((o) => o.name === p.name)} />}</HelpButton>
+    );
+    return <ParamField key={p.name} def={p} value={d.params[p.name]} onChange={(v) => update({ params: { ...d.params, [p.name]: v } })} help={help} />;
+  };
+  const filterHelp = (name: string) => <HelpButton label={`Help for the ${name} filter`}>{() => <FilterHelpContent filter={name} fallback={def.description} />}</HelpButton>;
   const visible = def.params.filter((p) => isParamVisible(p, d.params));
   if (d.defId === LETTERBOX_ID) return <LetterboxInspector id={id} d={d} fields={visible.map(field)} />;
   if (!d.generic) {
     return (
-      <Section title={`${def.ffName} options`}>
+      <Section title={`${def.ffName} options`} help={filterHelp(def.ffName)}>
         <p className="muted small">{def.description}</p>
         {visible.map(field)}
       </Section>
@@ -247,7 +255,7 @@ function FilterInspector({ id, d }: { id: string; d: FilterNodeData }) {
   const padParams = visible.filter((p) => p.ui && p.name !== "_raw");
   return (
     <>
-      <Section title={`${g.name} options`}>
+      <Section title={`${g.name} options`} help={filterHelp(g.name)}>
         <p className="muted small">{def.description}</p>
         {!g.help && !g.error && <p className="muted small">Reading options from ffmpeg…</p>}
         {g.error && <p className="error-text small">{g.error}</p>}
