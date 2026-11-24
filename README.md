@@ -1,15 +1,27 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="media/ffmpegnodes-logo-dark.svg">
+  <img src="media/ffmpegnodes-logo-light.svg" alt="ffmpegnodes" width="400">
+</picture>
+
 # ffmpegnodes
 
 **A desktop node editor for ffmpeg!**
 
-You wire up inputs, filters, encoders and outputs, and the app turns the graph into a single ffmpeg command. It checks that command before it runs and then runs it with live progress.
+Wire up inputs, filters, encoders and outputs, and ffmpegnodes builds a single ffmpeg command from the graph, checks it for problems, and runs it with live progress.
 
-- Supports multiple inputs & outputs
-- Supports CUDA decode + filters + encode
-- Includes over 500 filter nodes + parameters
-- Wizard for quick video-recoding node trees
-- Start multiple parallel jobs
-- Save/Load node trees
+- Multiple inputs and outputs, stream copy, per-stream language, title and disposition
+- 500+ filter nodes: a curated set with friendly settings, plus every filter in your ffmpeg build
+- Encoder presets: x264, x265, SVT-AV1, VP9, ProRes and NVIDIA NVENC (H.264, HEVC, AV1); AAC, Opus, MP3, AC-3/E-AC-3, FLAC, ALAC and PCM
+- One parameters node can feed many encoders, e.g. five audio tracks with the same settings
+- GPU pipeline: CUDA decode, GPU filters and NVENC encode, keeping frames on the GPU
+- **?** help for every filter, encoder and option, from the official ffmpeg docs (works offline)
+- Checks before running: formats along each wire, container compatibility, one-click fixes
+- Automatic letterbox detection and crop
+- Wizard that builds a complete recode graph in four steps
+- Live command preview, copyable for PowerShell or other shells
+- Parallel jobs, each with progress, speed, time left and GPU/CPU per stage
+- Quick-add, duplicate, save/load with autosave
+- Installers for Windows, macOS and Linux
 
 | ![GUI Demo](media/GUI_main.png) |
 |:---:|
