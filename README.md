@@ -40,6 +40,7 @@ Built with Tauri 2 (Rust) and React.
     - A curated set with friendly settings: scale, crop, deinterlace, denoise, loudness, downmix, and more.
     - Every other filter in your ffmpeg build, under "All ffmpeg filters". Their options are read from `ffmpeg -h filter=…`.
     - **Help:** the **?** next to a filter or option opens the matching part of the official ffmpeg filter docs: what it does, accepted values, expression variables and examples. For "All ffmpeg filters" it also shows the type, default and range your ffmpeg reports. The docs are bundled, so this works offline.
+  - **Help on Input and Encoder Parameters:** the **?** next to an encoder or setting shows the ffmpeg docs for it: the encoder's own options (e.g. libx264 `crf`, nvenc `cq`), generic codec options (`b`, `maxrate`, `threads`) and ffmpeg options (`-ss`, `-hwaccel`, `-r`).
   - **Remove letterbox:** detects black bars at the top and bottom of the video and crops them away.
   - **Video / Audio / Subtitle Encoder Parameters:** codec and all its options in one node. One node can feed any number of encoders, e.g. five audio tracks with the same AAC settings. Each new encoder gets its own connected parameters node.
   - **Encoders:** take their settings from a parameters node. Without one they show an error, and their stream is left out of the command.
@@ -119,8 +120,8 @@ cd src-tauri && cargo test
 | `src/validation/` | connection rules, format negotiation along wires, codec/container compatibility, diagnostics and quick fixes |
 | `src/model/` | shared types; encoder-parameter resolution, GPU residency, letterbox helpers |
 | `src/nodes/defs/` | pads per node, curated filter definitions, encoder schemas, generic filters from `ffmpeg -h` |
-| `src/docs/` | filter docs for the help popups: parser for FFmpeg's `filters.texi` and the bundled `filterDocs.json` |
-| `scripts/` | `gen-filter-docs.ts` (regenerates the filter docs), `release-prep.mjs`, `check-filter-docs.mjs` |
+| `src/docs/` | ffmpeg docs for the help popups: parser for FFmpeg's texinfo docs, the bundled `filterDocs.json` and `optionDocs.json`, and lookups |
+| `scripts/` | `gen-docs.ts` (regenerates the bundled docs), `release-prep.mjs`, `check-filter-docs.mjs` |
 | `src/nodes/ui/`, `src/inspector/`, `src/ui/` | React Flow nodes, Inspector panel, canvas, palette, quick-add, dock, toolbar |
 | `src/wizard/` | recode wizard: dialog and graph builder with column layout |
 | `src/store/` | zustand store, duplicate, project files, autosave |

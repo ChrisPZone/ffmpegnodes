@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "gen:filterdocs": "node scripts/gen-filter-docs.ts",
+    "gen:docs": "node scripts/gen-docs.ts",
     "release:prep": "node scripts/release-prep.mjs",
     "tauri": "tauri"
   },

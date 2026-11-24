@@ -10,14 +10,16 @@ ffmpegnodes: a Tauri 2 + React 19 + React Flow (@xyflow/react) node editor that 
 - `cargo test` in `src-tauri/`: Rust tests (process layer, letterbox detection).
 - Browser preview: the `web` config in `.claude/launch.json` runs `pnpm dev` on port 1420. ffprobe, ffmpeg and letterbox detection are mocked there (`src/ipc/mock.ts`). In browser mode the file pickers and confirm use `window.prompt` / `window.confirm`.
 - Desktop app: `pnpm tauri dev`.
-- `pnpm gen:filterdocs [tag]`: regenerates `src/docs/filterDocs.json` from FFmpeg's `doc/filters.texi` (default: the newest FFmpeg release). It refuses to write when the result looks broken; `-- --force` overrides.
+- `pnpm gen:docs [tag]`: regenerates the bundled ffmpeg docs (default: the newest FFmpeg release). It refuses to write when the result looks broken; `-- --force` overrides.
+  - `src/docs/filterDocs.json` comes from `doc/filters.texi`.
+  - `src/docs/optionDocs.json` comes from `encoders.texi`, `codecs.texi` ("Codec Options") and `ffmpeg.texi` ("Options").
 - Release:
-  1. Run `pnpm release:prep X.Y.Z`. It sets the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, runs `cargo check` to update `Cargo.lock`, and regenerates the filter docs. Review the diff.
+  1. Run `pnpm release:prep X.Y.Z`. It sets the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, runs `cargo check` to update `Cargo.lock`, and regenerates the ffmpeg docs. Review the diff.
   2. Commit, push `main`, and push a tag `vX.Y.Z`.
   3. `.github/workflows/release.yml` builds Windows, macOS and Linux installers into a **draft** release.
   4. When it finishes, publish the draft with release notes: a "What's new" section, then the install notes exactly as written in `releaseBody` in `release.yml`.
   - `.github/workflows/test.yml` runs typecheck and the tests on pushes to `main`.
-  - `release.yml` fails when the bundled filter docs are from an older FFmpeg major/minor release than the newest one (`scripts/check-filter-docs.mjs`).
+  - `release.yml` fails when the bundled ffmpeg docs are from an older FFmpeg major/minor release than the newest one (`scripts/check-filter-docs.mjs`).
 
 ## Architecture rules
 
@@ -33,8 +35,11 @@ ffmpegnodes: a Tauri 2 + React 19 + React Flow (@xyflow/react) node editor that 
   - Quick fixes for encoder settings must target `paramsId`, not the encoder.
 - **Muxer slots** always end with one spare slot. After adding or removing wires to an Output, call `normalizeMuxerSlots`.
 - **Generic filters** (`defId: "generic"`) store their parsed `ffmpeg -h filter=` help in node data. Use `filterDefOf(d)` to get a `FilterDef` for any filter node.
-- **Filter help popups** (`src/inspector/HelpPopover.tsx`) show the bundled ffmpeg docs (`src/docs/filterDocs.json`), which is loaded lazily on first use.
-  - `src/docs/texi.ts` parses `filters.texi`. It has no imports, so the generator script can run it with plain node.
+- **Help popups** (`src/inspector/HelpPopover.tsx`) show the bundled ffmpeg docs. Both JSON files are loaded lazily on first use.
+  - `src/docs/texi.ts` parses the texinfo files. It has no imports, so the generator script can run it with plain node.
+  - Filters: `filterDocs.json`, looked up with `optionDoc` / `filterDoc` (`src/docs/filterDocs.ts`).
+  - Encoder Parameters: `encoderOptionDoc` (`src/docs/optionDocs.ts`) tries the encoder's own section, then the generic codec options, then ffmpeg's options. `encoderParamDocRef(p)` gives the option: `doc.option` if set, else `flag`, none for UI-only params (`flag: ""`) or `doc: false`. `src/docs/optionDocs.test.ts` fails when an encoder param has no docs entry.
+  - Input node: `INPUT_DOC_OPTIONS` (`src/docs/inputOptions.ts`) maps its settings to ffmpeg options, looked up with `cliOptionDoc`. `-hwaccel_output_format` is not in the ffmpeg docs, so "Keep frames on GPU" has no popup.
   - `paramDocRef(def, p)` gives a param's ffmpeg filter and option: by default `ffName` and the param name, and none for `ui` params.
   - Set `doc: { option }` on a curated param whose name differs from the ffmpeg option, or `doc: false` when no ffmpeg option is behind it. A test (`src/docs/filterDocs.test.ts`) fails when a curated param has no docs entry.
   - Links open in the system browser through `openExternal` (`tauri-plugin-opener`).

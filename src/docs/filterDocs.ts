@@ -1,4 +1,4 @@
-// Lookup in the bundled filter docs (src/docs/filterDocs.json, made by `pnpm gen:filterdocs`).
+// Lookup in the bundled filter docs (src/docs/filterDocs.json, made by `pnpm gen:docs`).
 // The JSON is about 1 MB, so it is loaded on first use, not at startup.
 import type { DocOption, FilterDoc } from "./texi";
 

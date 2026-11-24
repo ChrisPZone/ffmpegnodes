@@ -32,6 +32,6 @@ setVersion("src-tauri/Cargo.toml", /(\[package\][^[]*?\nversion\s*=\s*")([^"]+)(
 const run = (cmd, args, cwd = root) => execFileSync(cmd, args, { cwd, stdio: "inherit" });
 console.log("cargo check (updates Cargo.lock)");
 run("cargo", ["check", "--quiet"], join(root, "src-tauri"));
-run(process.execPath, [join(root, "scripts", "gen-filter-docs.ts")]);
+run(process.execPath, [join(root, "scripts", "gen-docs.ts")]);
 
 console.log(`\nNext: review the changes, commit, push main, then: git tag v${version} && git push origin v${version}`);

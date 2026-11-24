@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inline, MARK, parseFiltersTexi, termNames } from "./texi";
+import { inline, MARK, optionNames, parseEncodersTexi, parseFiltersTexi, parseOptionChapter, termNames } from "./texi";
 
 const plainMarks = (s: string) =>
   s
@@ -150,5 +150,75 @@ describe("parseFiltersTexi", () => {
 
   it("reads an Options subsection", () => {
     expect(get("sine").options).toEqual([{ names: ["frequency", "f"], body: ["Tone in Hz."] }]);
+  });
+});
+
+describe("optionNames", () => {
+  it("reads names from codec, encoder and ffmpeg terms", () => {
+    expect(optionNames("b (bitrate)")).toEqual(["b"]);
+    expect(optionNames(`preset ${MARK.em[0]}integer${MARK.em[1]}`)).toEqual(["preset"]);
+    expect(optionNames("-r[:stream_specifier] fps (input/output,per-stream)")).toEqual(["r"]);
+    expect(optionNames("vbr (vbr, hard-cbr, and cvbr)")).toEqual(["vbr"]);
+    expect(optionNames("application (N.A.)")).toEqual(["application"]);
+    expect(optionNames("none", true)).toEqual([]);
+  });
+});
+
+const ENCODERS_TEXI = `
+@chapter Video Encoders
+
+@section libx264, libx264rgb
+x264 wrapper.
+
+@subsection Options
+@table @option
+@item crf (@emph{crf})
+Constant quality.
+@item preset @var{string}
+Speed.
+@table @samp
+@item fast
+quick
+@end table
+@end table
+
+@subsection Examples
+@example
+-c:v libx264
+@end example
+
+@section NVENC encoders
+The @code{h264_nvenc} and @code{hevc_nvenc} encoders use NVIDIA NVENC.
+
+@subsection Common options
+@table @option
+@item cq @var{float}
+Target quality.
+@end table
+`;
+
+describe("parseEncodersTexi", () => {
+  const docs = parseEncodersTexi(ENCODERS_TEXI);
+  it("names sections by title or by the encoders in their intro", () => {
+    expect(docs.map((d) => d.names)).toEqual([["libx264", "libx264rgb"], ["h264_nvenc", "hevc_nvenc"]]);
+    expect(docs[1].anchor).toBe("NVENC-encoders");
+  });
+  it("takes options from every subsection, keeping value tables inside", () => {
+    const x = docs[0];
+    expect(x.options.map((o) => [o.names, o.usage])).toEqual([[["crf"], "crf (crf)"], [["preset"], "preset string"]]);
+    expect(x.options[1].body).toEqual(["Speed.", ["dl", [[["fast"], ["quick"]]]]]);
+    expect(x.examples).toEqual([["code", "-c:v libx264"]]);
+    expect(docs[1].options[0].names).toEqual(["cq"]);
+  });
+});
+
+describe("parseOptionChapter", () => {
+  it("reads codec options from the chapter text", () => {
+    const opts = parseOptionChapter("@anchor{codec-options}\n@chapter Codec Options\n@table @option\n@item b @var{integer} (@emph{encoding})\nBitrate.\n@end table\n", /^Codec Options$/);
+    expect(opts).toEqual([{ names: ["b"], body: ["Bitrate."], usage: "b integer (encoding)", anchor: "codec-options" }]);
+  });
+  it("reads only -options of ffmpeg's Options chapter", () => {
+    const texi = "@chapter Options\n@section Main options\n@table @option\n@item -ss @var{position} (@emph{input/output})\nSeek.\n@end table\n@table @samp\n@item none\nNot an option.\n@end table\n";
+    expect(parseOptionChapter(texi, /^Options$/, true)).toEqual([{ names: ["ss"], body: ["Seek."], usage: "-ss position (input/output)", anchor: "Main-options" }]);
   });
 });

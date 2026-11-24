@@ -1,8 +1,9 @@
-// "?" buttons next to filter and option names, opening a popup with the ffmpeg docs
-// (bundled from filters.texi, see src/docs) and, for generic filters, what `ffmpeg -h` says.
+// "?" buttons next to filter, encoder and option names, opening a popup with the ffmpeg docs
+// (bundled from FFmpeg's texinfo docs, see src/docs) and, for generic filters, what `ffmpeg -h` says.
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { filterDoc, filterDocUrl, FILTER_DOCS_URL, loadFilterDocs, optionDoc, type FilterDocs } from "../docs/filterDocs";
+import { filterDoc, filterDocUrl, FILTER_DOCS_URL, loadFilterDocs, optionDoc } from "../docs/filterDocs";
+import { cliOptionDoc, encoderDoc, encoderDocUrl, encoderOptionDoc, loadOptionDocs, type OptionHit } from "../docs/optionDocs";
 import { MARK, type DocBlock } from "../docs/texi";
 import { openExternal } from "../ipc/ffmpeg";
 import type { HelpOption } from "../model/types";
@@ -98,20 +99,23 @@ function Popup({ anchor, onClose, children }: { anchor: HTMLElement; onClose: ()
 
 // ---------------------------------------------------------------- docs loading
 
-function useFilterDocs(): { docs?: FilterDocs; error?: string } {
-  const [state, setState] = useState<{ docs?: FilterDocs; error?: string }>({});
+function useDocs<T>(load: () => Promise<T>): { docs?: T; error?: string } {
+  const [state, setState] = useState<{ docs?: T; error?: string }>({});
   useEffect(() => {
     let live = true;
-    loadFilterDocs().then(
+    load().then(
       (docs) => live && setState({ docs }),
       (e) => live && setState({ error: String(e) }),
     );
     return () => {
       live = false;
     };
-  }, []);
+  }, [load]);
   return state;
 }
+
+const useFilterDocs = () => useDocs(loadFilterDocs);
+const useOptionDocs = () => useDocs(loadOptionDocs);
 
 // ---------------------------------------------------------------- rendering
 
@@ -222,7 +226,7 @@ export function DocBlocks({ blocks }: { blocks: DocBlock[] }) {
   );
 }
 
-function Footer({ docs, url, label }: { docs?: FilterDocs; url: string; label: string }) {
+function Footer({ docs, url, label }: { docs?: { ffmpeg: string }; url: string; label: string }) {
   return (
     <div className="help-foot">
       <Link href={url}>{label} ↗</Link>
@@ -327,6 +331,104 @@ export function FilterHelpContent({ filter, fallback }: { filter: string; fallba
         </>
       )}
       <Footer docs={docs} url={f ? filterDocUrl(f) : FILTER_DOCS_URL} label={`${filter} docs`} />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- encoder and ffmpeg options
+
+const SOURCE_NOTE: Record<OptionHit["from"], string | undefined> = {
+  encoder: undefined,
+  codec: "A generic codec option, the same for all encoders and decoders.",
+  cli: "An ffmpeg command-line option.",
+};
+const SOURCE_LINK: Record<OptionHit["from"], string> = { encoder: "", codec: "Codec options", cli: "ffmpeg options" };
+
+function LoadState({ docs, error }: { docs?: unknown; error?: string }) {
+  if (error) return <p className="error-text">Could not load the docs: {error}</p>;
+  return docs ? null : <p className="muted">Loading docs…</p>;
+}
+
+/** Name, usage, source note and text of an option found in the codec / encoder / ffmpeg docs. */
+function OptionHitView({ name, option, context, hit, plain }: { name: string; option: string; context?: string; hit?: OptionHit; plain?: OptionHit["from"] }) {
+  const also = hit?.option.names.filter((n) => n !== option) ?? [];
+  return (
+    <>
+      <div className="help-head">
+        <code className="help-name">{name}</code>
+        {(context || also.length > 0) && (
+          <span className="muted">
+            {context}
+            {context && also.length > 0 && " · "}
+            {also.length > 0 && `also ${also.join(", ")}`}
+          </span>
+        )}
+      </div>
+      {hit?.option.usage && <div className="help-usage"><code>{hit.option.usage}</code></div>}
+      {hit && hit.from !== plain && SOURCE_NOTE[hit.from] && <p className="muted">{SOURCE_NOTE[hit.from]}</p>}
+      {hit && <DocBlocks blocks={hit.option.body} />}
+    </>
+  );
+}
+
+/** An Encoder Parameters option: the encoder's docs, else the generic codec or ffmpeg options. */
+export function EncoderOptionHelp({ codec, option }: { codec: string; option: string }) {
+  const { docs, error } = useOptionDocs();
+  const hit = docs ? encoderOptionDoc(docs, codec, option) : undefined;
+  const enc = docs ? encoderDoc(docs, codec) : undefined;
+  return (
+    <>
+      <OptionHitView name={option} option={option} context={codec} hit={hit} plain="encoder" />
+      <LoadState docs={docs} error={error} />
+      {docs && !hit && <p className="muted">The ffmpeg docs have no entry for this option.</p>}
+      <Footer
+        docs={docs}
+        url={hit?.url ?? (enc ? encoderDocUrl(enc) : "https://ffmpeg.org/ffmpeg-codecs.html")}
+        label={hit && hit.from !== "encoder" ? SOURCE_LINK[hit.from] : `${codec} docs`}
+      />
+    </>
+  );
+}
+
+/** An ffmpeg command-line option such as -ss or -hwaccel. */
+export function CliOptionHelp({ option }: { option: string }) {
+  const { docs, error } = useOptionDocs();
+  const hit = docs ? cliOptionDoc(docs, option) : undefined;
+  return (
+    <>
+      <OptionHitView name={`-${option}`} option={option} hit={hit} plain="cli" />
+      <LoadState docs={docs} error={error} />
+      {docs && !hit && <p className="muted">The ffmpeg docs have no entry for this option.</p>}
+      <Footer docs={docs} url={hit?.url ?? "https://ffmpeg.org/ffmpeg.html#Options"} label={hit ? SOURCE_LINK[hit.from] : "ffmpeg options"} />
+    </>
+  );
+}
+
+/** The encoder itself (header of the Encoder Parameters "Codec" section). */
+export function EncoderHelpContent({ codec }: { codec: string }) {
+  const { docs, error } = useOptionDocs();
+  const e = docs ? encoderDoc(docs, codec) : undefined;
+  return (
+    <>
+      <div className="help-head">
+        <code className="help-name">{codec}</code>
+        {e && e.names.length > 1 && <span className="muted">also {e.names.filter((n) => n !== codec).join(", ")}</span>}
+      </div>
+      <LoadState docs={docs} error={error} />
+      {docs && !e && <p className="muted">The ffmpeg docs have no section for this encoder. Its options fall back to the generic codec options.</p>}
+      {e && (
+        <>
+          {e.summary && <p><DocText text={e.summary} /></p>}
+          <DocBlocks blocks={e.body} />
+          {e.examples && (
+            <details className="help-examples">
+              <summary>Examples</summary>
+              <DocBlocks blocks={e.examples} />
+            </details>
+          )}
+        </>
+      )}
+      <Footer docs={docs} url={e ? encoderDocUrl(e) : "https://ffmpeg.org/ffmpeg-codecs.html"} label={`${codec} docs`} />
     </>
   );
 }

@@ -7,6 +7,17 @@ export interface EncoderParamDef extends ParamDef {
   flag: string;
   /** Emit even when equal to the default (quality knobs the user should always see in the command). */
   emitDefault?: boolean;
+  /**
+   * Where the help popup finds this param in the ffmpeg docs. Default: `flag` (none for UI-only
+   * params). `false`: no help.
+   */
+  doc?: { option: string } | false;
+}
+
+/** The ffmpeg option a param's help comes from, if any. */
+export function encoderParamDocRef(p: EncoderParamDef): string | undefined {
+  if (p.doc === false) return undefined;
+  return p.doc ? p.doc.option : p.flag || undefined;
 }
 
 export interface EncoderSchema {
@@ -132,6 +143,7 @@ function nvencParams(kind: "h264" | "hevc" | "av1"): EncoderParamDef[] {
         { value: "cbr", label: "CBR (constant bitrate)" },
         { value: "constqp", label: "Constant QP" },
       ],
+      doc: { option: "rc" },
     },
     {
       name: "cq",

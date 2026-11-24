@@ -1,6 +1,6 @@
-// Parses FFmpeg's doc/filters.texi (the source of ffmpeg.org/ffmpeg-filters.html) into compact
-// per-filter docs for the help popups. Pure and import-free: scripts/gen-filter-docs.ts runs it
-// with plain node.
+// Parses FFmpeg's texinfo docs (the source of ffmpeg.org's manuals) into compact docs for the
+// help popups: filters.texi per filter, encoders.texi per encoder, and the option chapters of
+// codecs.texi and ffmpeg.texi. Pure and import-free: scripts/gen-docs.ts runs it with plain node.
 //
 // Inline text uses private-use markers instead of markdown, because filter docs are full of
 // `*`, `_` and `[` in expressions:
@@ -14,6 +14,10 @@ export interface DocOption {
   /** Option name and its aliases. */
   names: string[];
   body: DocBlock[];
+  /** The term as written when it says more than the names ("-ss position (input/output)"). */
+  usage?: string;
+  /** Section it is documented in, when that is not the whole doc's anchor. */
+  anchor?: string;
 }
 
 export interface FilterDoc {
@@ -431,19 +435,25 @@ function buildFilter(title: string, anchor: string | undefined, lines: string[])
   return doc;
 }
 
-/** All filter sections of filters.texi (sections under the filter, source and sink chapters). */
-export function parseFiltersTexi(texi: string): FilterDoc[] {
+/** A chapter's text before its first @section, or one @section. */
+interface Unit {
+  chapter: string;
+  /** Section title, or the chapter title for the text before the first section. */
+  title: string;
+  isChapter: boolean;
+  anchor?: string;
+  lines: string[];
+}
+
+/** Splits a texi file at @chapter and @section. */
+function splitUnits(texi: string): Unit[] {
   const lines = texi.replace(/\r\n?/g, "\n").split("\n");
-  const docs: FilterDoc[] = [];
+  const units: Unit[] = [];
   let chapter = "";
-  let cur: { title: string; anchor?: string; lines: string[] } | undefined;
+  let cur: Unit | undefined;
   let pendingAnchor: string | undefined;
-  const isFilterChapter = (ch: string) => /(Filters|Sources|Sinks)$/.test(ch) && !/Introduction/.test(ch);
   const finish = () => {
-    if (cur && isFilterChapter(chapter)) {
-      const d = buildFilter(cur.title, cur.anchor, cur.lines);
-      if (d.names.length) docs.push(d);
-    }
+    if (cur) units.push(cur);
     cur = undefined;
   };
   for (const line of lines) {
@@ -452,20 +462,148 @@ export function parseFiltersTexi(texi: string): FilterDoc[] {
     if ((m = /^@chapter\s+(.*)$/.exec(t))) {
       finish();
       chapter = m[1].trim();
+      cur = { chapter, title: chapter, isChapter: true, anchor: pendingAnchor, lines: [] };
       pendingAnchor = undefined;
       continue;
     }
     if ((m = /^@section\s+(.*)$/.exec(t))) {
       finish();
-      cur = { title: m[1].trim(), anchor: pendingAnchor, lines: [] };
+      cur = { chapter, title: m[1].trim(), isChapter: false, anchor: pendingAnchor, lines: [] };
       pendingAnchor = undefined;
       continue;
     }
-    // an @anchor directly before @section (blank lines allowed) names that section
+    // an @anchor directly before @chapter / @section (blank lines allowed) names it
     if ((m = /^@anchor\{([^}]*)\}\s*$/.exec(t))) pendingAnchor = m[1];
     else if (t) pendingAnchor = undefined;
     cur?.lines.push(line);
   }
   finish();
+  return units;
+}
+
+/** Splits a unit's lines at @subsection / @subsubsection. */
+function splitParts(lines: string[]): { title: string; lines: string[] }[] {
+  const parts: { title: string; lines: string[] }[] = [{ title: "", lines: [] }];
+  for (const line of lines) {
+    const m = /^@(sub)?subsection\s+(.*)$/.exec(line.trim());
+    if (m) parts.push({ title: inline(m[2], true).trim(), lines: [] });
+    else parts[parts.length - 1].lines.push(line);
+  }
+  return parts;
+}
+
+/** All filter sections of filters.texi (sections under the filter, source and sink chapters). */
+export function parseFiltersTexi(texi: string): FilterDoc[] {
+  const isFilterChapter = (ch: string) => /(Filters|Sources|Sinks)$/.test(ch) && !/Introduction/.test(ch);
+  return splitUnits(texi)
+    .filter((u) => !u.isChapter && isFilterChapter(u.chapter))
+    .map((u) => buildFilter(u.title, u.anchor, u.lines))
+    .filter((d) => d.names.length > 0);
+}
+
+// ---------------------------------------------------------------- encoders, codec and CLI options
+
+/** Splits on commas outside parentheses and brackets. */
+function splitTopCommas(s: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let cur = "";
+  for (const c of s) {
+    if (c === "(" || c === "[") depth++;
+    if (c === ")" || c === "]") depth = Math.max(0, depth - 1);
+    if (c === "," && depth === 0) {
+      out.push(cur);
+      cur = "";
+    } else cur += c;
+  }
+  out.push(cur);
+  return out.map((x) => x.trim()).filter(Boolean);
+}
+
+/**
+ * Option names of a term in the codec / encoder / ffmpeg docs, which add a value, a stream
+ * specifier or a note: "b (bitrate)", "preset integer", "-r[:stream_specifier] fps (input)".
+ * `dashOnly` keeps only "-name" parts (ffmpeg's command-line options).
+ */
+export function optionNames(term: string, dashOnly = false): string[] {
+  return splitTopCommas(stripMarks(term))
+    .filter((p) => !dashOnly || p.startsWith("-"))
+    .map((p) => /^-?([A-Za-z0-9_][A-Za-z0-9_.-]*)/.exec(p)?.[1] ?? "")
+    .filter((n) => n && !/^N\.?A\.?$/.test(n));
+}
+
+/** Term-list rows of `blocks` (top level only) as options. */
+function rowsToOptions(blocks: DocBlock[], dashOnly: boolean, anchor?: string): DocOption[] {
+  const out: DocOption[] = [];
+  for (const b of blocks) {
+    if (!Array.isArray(b) || b[0] !== "dl") continue;
+    for (const [terms, body] of b[1]) {
+      const names = [...new Set(terms.flatMap((t) => optionNames(t, dashOnly)))];
+      if (!names.length) continue;
+      const opt: DocOption = { names, body };
+      const usage = terms.map((t) => stripMarks(t).trim()).join(", ");
+      if (usage !== names.join(", ")) opt.usage = usage;
+      if (anchor) opt.anchor = anchor;
+      out.push(opt);
+    }
+  }
+  return out;
+}
+
+/** Keeps the first option for each name. */
+function dedupe(options: DocOption[]): DocOption[] {
+  const seen = new Set<string>();
+  return options.filter((o) => {
+    const fresh = o.names.some((n) => !seen.has(n));
+    for (const n of o.names) seen.add(n);
+    return fresh;
+  });
+}
+
+/** Encoder names of a section: its title ("libx264, libx264rgb"), else the code names in its intro. */
+function encoderNames(title: string, summary: string): string[] {
+  const parts = title.split(/\s*,\s*/);
+  if (parts.every((p) => /^[A-Za-z0-9_-]+$/.test(p))) return parts.map((p) => p.toLowerCase());
+  const codes = [...summary.matchAll(/([a-z0-9_]+)/g)].map((m) => m[1]);
+  return [...new Set(codes)];
+}
+
+/** Encoder sections of encoders.texi; options come from every term list outside the examples. */
+export function parseEncodersTexi(texi: string): FilterDoc[] {
+  const docs: FilterDoc[] = [];
+  for (const u of splitUnits(texi)) {
+    if (u.isChapter || !/Encoders$/i.test(u.chapter)) continue;
+    const doc: FilterDoc = { names: [], anchor: u.anchor ?? sectionId(u.title), summary: "", body: [], options: [] };
+    for (const part of splitParts(u.lines)) {
+      const blocks = parseBlocks({ lines: part.lines, i: 0 });
+      if (/^examples?$/i.test(part.title)) {
+        if (blocks.length) doc.examples = [...(doc.examples ?? []), ...blocks];
+        continue;
+      }
+      const options = rowsToOptions(blocks, false);
+      doc.options.push(...options);
+      const rest = blocks.filter((b) => !(Array.isArray(b) && b[0] === "dl" && rowsToOptions([b], false).length));
+      if (!doc.summary && !part.title && typeof rest[0] === "string") doc.summary = rest.shift() as string;
+      if (part.title && rest.length) doc.body.push(["h", part.title]);
+      doc.body.push(...rest);
+    }
+    doc.options = dedupe(doc.options);
+    doc.names = encoderNames(u.title, doc.summary);
+    if (doc.names.length) docs.push(doc);
+  }
   return docs;
+}
+
+/**
+ * Options from term lists in the chapters matching `chapter` (codecs.texi "Codec Options",
+ * ffmpeg.texi "Options"). Each option keeps the anchor of its section.
+ */
+export function parseOptionChapter(texi: string, chapter: RegExp, dashOnly = false): DocOption[] {
+  const out: DocOption[] = [];
+  for (const u of splitUnits(texi)) {
+    if (!chapter.test(u.chapter)) continue;
+    const anchor = u.anchor ?? sectionId(u.title);
+    for (const part of splitParts(u.lines)) out.push(...rowsToOptions(parseBlocks({ lines: part.lines, i: 0 }), dashOnly, anchor));
+  }
+  return dedupe(out);
 }

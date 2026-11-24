@@ -5,14 +5,15 @@ import { encoderOnGpuFrames, gpuResidency, isGpuEncoder, upstreamInput } from ".
 import { encodersUsing, paramsNodeOf, PARAMS_PAD, resolveEncoder } from "../model/encoders";
 import type { EncoderNodeData, EncoderParamsNodeData, FilterNodeData, GNode, InputNodeData, InputOptions, Media, MuxerNodeData, MuxSlot, NodeData } from "../model/types";
 import { encoderDefaults, findPad, newEncoderParamsData, nodeTitle } from "../nodes/defs";
-import { ENCODERS, getEncoderSchema, isParamVisible, withDefaults } from "../nodes/defs/encoders";
+import { ENCODERS, encoderParamDocRef, getEncoderSchema, isParamVisible, withDefaults, type EncoderParamDef } from "../nodes/defs/encoders";
 import { paramDocRef } from "../nodes/defs/filters";
 import { filterDefOf } from "../nodes/defs/generic";
 import { LETTERBOX_ID } from "../model/letterbox";
 import { useGraph } from "../store/graph";
 import { useDerived } from "../ui/derived";
 import { COMMON_FORMATS, isMp4Family, resolveFormat } from "../validation/compat";
-import { FilterHelpContent, HelpButton, OptionHelp } from "./HelpPopover";
+import { INPUT_DOC_OPTIONS } from "../docs/inputOptions";
+import { CliOptionHelp, EncoderHelpContent, EncoderOptionHelp, FilterHelpContent, HelpButton, OptionHelp } from "./HelpPopover";
 import { CommitText, Field, GpuSelect, KVTable, ParamField, Section } from "./widgets";
 
 export function Inspector() {
@@ -90,6 +91,12 @@ function useUpdate<D extends NodeData>(id: string) {
 
 const HWACCELS = ["", "auto", "cuda", "qsv", "d3d11va", "dxva2", "videotoolbox", "vaapi", "vulkan"];
 
+/** "?" for an Input setting, showing the docs of the ffmpeg option behind it. */
+function inputHelp(k: keyof InputOptions) {
+  const option = INPUT_DOC_OPTIONS[k];
+  return option && <HelpButton label={`Help for -${option}`}>{() => <CliOptionHelp option={option} />}</HelpButton>;
+}
+
 function InputInspector({ id, d }: { id: string; d: InputNodeData }) {
   const update = useUpdate<InputNodeData>(id);
   const probeInput = useGraph((s) => s.probeInput);
@@ -132,13 +139,13 @@ function InputInspector({ id, d }: { id: string; d: InputNodeData }) {
         </Section>
       )}
       <Section title="Seek / trim / decoder (advanced)" collapsed={!d.options.ss && !d.options.t && !d.options.hwaccel && !d.options.threads && !d.options.r}>
-        <Field label="Start (-ss)" hint="Input seek, e.g. 00:01:30 or 90">
+        <Field label="Start (-ss)" hint="Input seek, e.g. 00:01:30 or 90" help={inputHelp("ss")}>
           <input type="text" value={d.options.ss} onChange={(e) => setOpt("ss", e.target.value)} />
         </Field>
-        <Field label="Duration (-t)">
+        <Field label="Duration (-t)" help={inputHelp("t")}>
           <input type="text" value={d.options.t} onChange={(e) => setOpt("t", e.target.value)} />
         </Field>
-        <Field label="HW decode (-hwaccel)">
+        <Field label="HW decode (-hwaccel)" help={inputHelp("hwaccel")}>
           <select value={d.options.hwaccel} onChange={(e) => setOpt("hwaccel", e.target.value)}>
             {HWACCELS.map((h) => (
               <option key={h} value={h}>{h || "none (software)"}</option>
@@ -147,7 +154,7 @@ function InputInspector({ id, d }: { id: string; d: InputNodeData }) {
         </Field>
         {d.options.hwaccel === "cuda" && <CudaInputOptions id={id} d={d} setOpt={setOpt} />}
         {d.options.hwaccel && d.options.hwaccel !== "cuda" && d.options.hwaccel !== "auto" && (
-          <Field label="Device (-hwaccel_device)" hint="Leave empty for the system default">
+          <Field label="Device (-hwaccel_device)" hint="Leave empty for the system default" help={inputHelp("hwaccel_device")}>
             <input
               type="text"
               value={d.options.hwaccel_device}
@@ -156,10 +163,10 @@ function InputInspector({ id, d }: { id: string; d: InputNodeData }) {
             />
           </Field>
         )}
-        <Field label="Decoder threads">
+        <Field label="Decoder threads" help={inputHelp("threads")}>
           <input type="text" value={d.options.threads} onChange={(e) => setOpt("threads", e.target.value)} placeholder="auto" />
         </Field>
-        <Field label="Force frame rate (-r)">
+        <Field label="Force frame rate (-r)" help={inputHelp("r")}>
           <input type="text" value={d.options.r} onChange={(e) => setOpt("r", e.target.value)} placeholder="from file" />
         </Field>
       </Section>
@@ -184,7 +191,7 @@ function CudaInputOptions({ id, d, setOpt }: { id: string; d: InputNodeData; set
   else explain = "Connect a video stream to an nvenc encoder to keep frames on the GPU.";
   return (
     <>
-      <GpuSelect label="GPU (-hwaccel_device)" value={d.options.hwaccel_device} onChange={(v) => setOpt("hwaccel_device", v)} />
+      <GpuSelect label="GPU (-hwaccel_device)" value={d.options.hwaccel_device} onChange={(v) => setOpt("hwaccel_device", v)} help={inputHelp("hwaccel_device")} />
       <Field label="Keep frames on GPU" hint="Auto adds -hwaccel_output_format cuda when every consumer of the decoded video runs on the GPU">
         <select value={d.options.gpuFrames} onChange={(e) => setOpt("gpuFrames", e.target.value)}>
           <option value="auto">Auto</option>
@@ -198,7 +205,7 @@ function CudaInputOptions({ id, d, setOpt }: { id: string; d: InputNodeData; set
 
 /** nvenc's GPU option: locked to the Input's GPU when frames arrive in GPU memory. */
 /** GPU picker of a parameters node; hidden when all its nvenc encoders get GPU frames anyway. */
-function EncoderGpuField({ paramsId, value, onChange }: { paramsId: string; value: string; onChange: (v: string) => void }) {
+function EncoderGpuField({ paramsId, value, onChange, help }: { paramsId: string; value: string; onChange: (v: string) => void; help?: ReactNode }) {
   const nodes = useGraph((s) => s.nodes);
   const edges = useGraph((s) => s.edges);
   const gpus = useGraph((s) => s.gpus);
@@ -210,14 +217,14 @@ function EncoderGpuField({ paramsId, value, onChange }: { paramsId: string; valu
     const dev = inp?.data.options.hwaccel_device || "";
     const name = gpus?.find((x) => String(x.index) === (dev || "0"))?.name;
     return (
-      <Field label="GPU" hint="nvenc encodes on the GPU that already holds the frames">
+      <Field label="GPU" hint="nvenc encodes on the GPU that already holds the frames" help={help}>
         <span className="muted small">
           Follows the Input's GPU ({dev || "default"}{name ? `: ${name}` : ""})
         </span>
       </Field>
     );
   }
-  return <GpuSelect label="GPU (-gpu)" value={value} onChange={onChange} hint="Which NVIDIA GPU encodes" />;
+  return <GpuSelect label="GPU (-gpu)" value={value} onChange={onChange} hint="Which NVIDIA GPU encodes" help={help} />;
 }
 
 // ---------------------------------------------------------------- filter
@@ -395,13 +402,17 @@ function EncoderParamsInspector({ id, d }: { id: string; d: EncoderParamsNodeDat
   const main = visible.filter((p) => p.face);
   const rest = visible.filter((p) => !p.face);
   const setParam = (name: string, v: string | number | boolean) => update({ params: { ...d.params, [name]: v } });
+  const help = (p: EncoderParamDef) => {
+    const option = encoderParamDocRef(p);
+    return option && <HelpButton label={`Help for ${option}`}>{() => <EncoderOptionHelp codec={d.codec} option={option} />}</HelpButton>;
+  };
 
   return (
     <>
       <p className="muted small">
         {users === 0 ? "Not connected to an encoder yet: wire its output to the top pad of encoders." : `Used by ${users} encoder${users > 1 ? "s" : ""}.`}
       </p>
-      <Section title="Codec">
+      <Section title="Codec" help={<HelpButton label={`Help for the ${d.codec} encoder`}>{() => <EncoderHelpContent codec={d.codec} />}</HelpButton>}>
         <Field label="Encoder">
           <select value={d.codec} onChange={(e) => setCodec(e.target.value)}>
             <optgroup label="With presets">
@@ -423,16 +434,16 @@ function EncoderParamsInspector({ id, d }: { id: string; d: EncoderParamsNodeDat
         </Field>
         {main.map((p) =>
           p.name === "gpu" && isGpuEncoder(d.codec) ? (
-            <EncoderGpuField key={p.name} paramsId={id} value={String(d.params.gpu ?? "")} onChange={(v) => setParam("gpu", v)} />
+            <EncoderGpuField key={p.name} paramsId={id} value={String(d.params.gpu ?? "")} onChange={(v) => setParam("gpu", v)} help={help(p)} />
           ) : (
-            <ParamField key={p.name} def={p} value={d.params[p.name]} onChange={(v) => setParam(p.name, v)} />
+            <ParamField key={p.name} def={p} value={d.params[p.name]} onChange={(v) => setParam(p.name, v)} help={help(p)} />
           ),
         )}
       </Section>
       {rest.length > 0 && (
         <Section title="Advanced" collapsed>
           {rest.map((p) => (
-            <ParamField key={p.name} def={p} value={d.params[p.name]} onChange={(v) => setParam(p.name, v)} />
+            <ParamField key={p.name} def={p} value={d.params[p.name]} onChange={(v) => setParam(p.name, v)} help={help(p)} />
           ))}
         </Section>
       )}

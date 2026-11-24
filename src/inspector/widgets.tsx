@@ -7,7 +7,7 @@ import { useGraph } from "../store/graph";
  * NVIDIA GPU picker (CUDA order). Lists GPUs by name once detected; with a single GPU it
  * only shows which one is used; falls back to a plain index field if detection fails.
  */
-export function GpuSelect({ label, value, onChange, hint }: { label: string; value: string; onChange: (v: string) => void; hint?: string }) {
+export function GpuSelect({ label, value, onChange, hint, help }: { label: string; value: string; onChange: (v: string) => void; hint?: string; help?: ReactNode }) {
   const gpus = useGraph((s) => s.gpus);
   const state = useGraph((s) => s.gpusState);
   const error = useGraph((s) => s.gpusError);
@@ -19,7 +19,7 @@ export function GpuSelect({ label, value, onChange, hint }: { label: string; val
   if (state === "error" || (state === "ok" && !gpus?.length)) {
     return (
       <>
-        <Field label={label} hint={hint}>
+        <Field label={label} hint={hint} help={help}>
           <input type="text" value={value} onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))} placeholder="default" />
         </Field>
         <p className="muted small">
@@ -31,7 +31,7 @@ export function GpuSelect({ label, value, onChange, hint }: { label: string; val
   }
   if (state !== "ok" || !gpus) {
     return (
-      <Field label={label} hint={hint}>
+      <Field label={label} hint={hint} help={help}>
         <select disabled>
           <option>Detecting GPUs…</option>
         </select>
@@ -43,7 +43,7 @@ export function GpuSelect({ label, value, onChange, hint }: { label: string; val
   }
   const known = gpus.some((g) => String(g.index) === value);
   return (
-    <Field label={label} hint={hint}>
+    <Field label={label} hint={hint} help={help}>
       <select value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">Default ({gpus[0].name})</option>
         {gpus.map((g) => (

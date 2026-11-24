@@ -383,3 +383,4 @@ code { background: var(--panel-2); padding: 0 3px; border-radius: 3px; }
 .help-examples { margin: 6px 0; }
 .help-examples summary { cursor: pointer; color: var(--muted); font-weight: 600; }
 .help-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--border); font-size: 11px; }
+.help-usage { margin: -2px 0 6px; color: var(--muted); }
