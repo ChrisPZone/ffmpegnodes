@@ -54,7 +54,7 @@ jobs:
       # the bundled filter docs (help popups) must match the newest FFmpeg release
       - run: node scripts/check-filter-docs.mjs
 
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
