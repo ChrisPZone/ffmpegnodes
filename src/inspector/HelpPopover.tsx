@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { createPortal } from "react-dom";
 import { filterDoc, filterDocUrl, FILTER_DOCS_URL, loadFilterDocs, optionDoc } from "../docs/filterDocs";
 import { cliOptionDoc, encoderDoc, encoderDocUrl, encoderOptionDoc, loadOptionDocs, type OptionHit } from "../docs/optionDocs";
-import { MARK, type DocBlock } from "../docs/texi";
+import { MARK, type DocBlock, type FilterDoc } from "../docs/texi";
 import { openExternal } from "../ipc/ffmpeg";
 import type { HelpOption } from "../model/types";
 
@@ -282,6 +282,12 @@ export function OptionHelp({ filter, option, binary }: { filter: string; option:
         <>
           {binary?.description ? <p>{binary.description}</p> : null}
           <p className="muted">The ffmpeg docs have no entry for this option.</p>
+          {own && (
+            <details className="help-examples">
+              <summary>{filter} filter docs</summary>
+              <FilterDocBody f={own} />
+            </details>
+          )}
         </>
       )}
       {docs && !hit && binary && binary.consts.length > 0 && (
@@ -318,19 +324,24 @@ export function FilterHelpContent({ filter, fallback }: { filter: string; fallba
           <p className="muted">The ffmpeg docs have no section for this filter.</p>
         </>
       )}
-      {f && (
-        <>
-          {f.summary && <p><DocText text={f.summary} /></p>}
-          <DocBlocks blocks={f.body} />
-          {f.examples && (
-            <details className="help-examples">
-              <summary>Examples</summary>
-              <DocBlocks blocks={f.examples} />
-            </details>
-          )}
-        </>
-      )}
+      {f && <FilterDocBody f={f} />}
       <Footer docs={docs} url={f ? filterDocUrl(f) : FILTER_DOCS_URL} label={`${filter} docs`} />
+    </>
+  );
+}
+
+/** A filter section's summary, text and examples. */
+function FilterDocBody({ f }: { f: FilterDoc }) {
+  return (
+    <>
+      {f.summary && <p><DocText text={f.summary} /></p>}
+      <DocBlocks blocks={f.body} />
+      {f.examples && (
+        <details className="help-examples">
+          <summary>Examples</summary>
+          <DocBlocks blocks={f.examples} />
+        </details>
+      )}
     </>
   );
 }

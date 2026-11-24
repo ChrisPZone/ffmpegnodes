@@ -13,15 +13,16 @@ export interface FilterParamDef extends ParamDef {
   ui?: boolean;
   /**
    * Where the help popup finds this param in the ffmpeg docs. Default: the def's `ffName` and
-   * the param's name (none for `ui` params). `false`: no ffmpeg option behind it.
+   * the param's name (none for `ui` params). `whole`: the filter's whole section (its docs
+   * describe a syntax, not options). `false`: no ffmpeg option behind it.
    */
-  doc?: { filter?: string; option: string } | false;
+  doc?: { filter?: string; option: string } | { filter?: string; whole: true } | false;
 }
 
-/** The ffmpeg filter and option a param's help comes from, if any. */
-export function paramDocRef(def: Pick<FilterDef, "ffName">, p: FilterParamDef): { filter: string; option: string } | undefined {
+/** The ffmpeg filter and option a param's help comes from, if any; no option means the whole section. */
+export function paramDocRef(def: Pick<FilterDef, "ffName">, p: FilterParamDef): { filter: string; option?: string } | undefined {
   if (p.doc === false) return undefined;
-  if (p.doc) return { filter: p.doc.filter ?? def.ffName, option: p.doc.option };
+  if (p.doc) return { filter: p.doc.filter ?? def.ffName, option: "option" in p.doc ? p.doc.option : undefined };
   return p.ui ? undefined : { filter: def.ffName, option: p.name };
 }
 
@@ -1069,7 +1070,7 @@ export const FILTERS: FilterDef[] = [
         face: true,
         options: opts(["stereo", "downmix to stereo"], ["mono", "downmix to mono"], ["left", "left channel only (mono)"], ["right", "right channel only (mono)"], ["swap", "swap left/right"], ["custom", "custom pan…"]),
       },
-      { name: "expr", label: "Pan expression", type: "string", default: "stereo|c0=c0|c1=c1", ui: true, visibleIf: (v) => v.preset === "custom" },
+      { name: "expr", label: "Pan expression", type: "string", default: "stereo|c0=c0|c1=c1", ui: true, doc: { whole: true }, visibleIf: (v) => v.preset === "custom" },
     ],
     inputs: () => [aIn()],
     outputs: () => [aOut()],

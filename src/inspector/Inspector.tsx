@@ -237,9 +237,10 @@ function FilterInspector({ id, d }: { id: string; d: FilterNodeData }) {
   const binary = d.generic?.help?.options;
   const field = (p: (typeof def.params)[number]) => {
     const ref = paramDocRef(def, p);
-    const help = ref && (
-      <HelpButton label={`Help for ${ref.option}`}>{() => <OptionHelp filter={ref.filter} option={ref.option} binary={binary?.find((o) => o.name === p.name)} />}</HelpButton>
-    );
+    const option = ref?.option;
+    const help = ref && (option
+      ? <HelpButton label={`Help for ${option}`}>{() => <OptionHelp filter={ref.filter} option={option} binary={binary?.find((o) => o.name === p.name)} />}</HelpButton>
+      : <HelpButton label={`Help for the ${ref.filter} filter`}>{() => <FilterHelpContent filter={ref.filter} fallback={def.description} />}</HelpButton>);
     return <ParamField key={p.name} def={p} value={d.params[p.name]} onChange={(v) => update({ params: { ...d.params, [p.name]: v } })} help={help} />;
   };
   const filterHelp = (name: string) => <HelpButton label={`Help for the ${name} filter`}>{() => <FilterHelpContent filter={name} fallback={def.description} />}</HelpButton>;
