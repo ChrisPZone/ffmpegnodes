@@ -6,5 +6,5 @@
 
 - [ ] `pnpm typecheck` and `pnpm test` pass (and `cargo test` for Rust changes)
 - [ ] UI changes checked in the browser preview, console free of errors
-- [ ] Line endings of edited files unchanged
+- [ ] Edited files use LF line endings
 - [ ] CLAUDE.md updated if an architecture rule, convention or workflow changed

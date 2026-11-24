@@ -27,7 +27,7 @@ cd src-tauri && cargo test     # when you changed Rust code
 ```
 
 - For UI changes, check them in the browser preview (`pnpm dev`) and keep the console free of errors.
-- Keep each file's line endings: some files are CRLF and some are LF.
+- All text files use LF line endings (`.gitattributes` and `.editorconfig` set this). For `git blame`, run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once.
 - Pure logic (serializer, validation, wizard builder) takes plain `Graph` objects and gets unit tests.
 - [CLAUDE.md](CLAUDE.md) lists the architecture rules and conventions. If your change adds or alters one, update it in the same pull request.
 - UI text is short and plain. The project name is always written `ffmpegnodes`.

@@ -69,5 +69,5 @@ ffmpegnodes: a Tauri 2 + React 19 + React Flow (@xyflow/react) node editor that 
 - **Naming:** the project name is always `ffmpegnodes`; no other spellings.
 - **UI text:** short and plain. Media colours are video yellow, audio red, subtitle blue. Parameter pads and wires use darker shades of those (`--params-*` tokens in `src/styles.css`).
 - **After changing UI code,** check it in the browser preview and keep the console free of errors.
-- **Line endings:** keep each file's existing line endings; some files are CRLF and some are LF. Scripts that rewrite files on Windows must read and write bytes, not text mode, which turns LF into CRLF.
+- **Line endings:** all text files are LF, enforced by `.gitattributes` (`eol=lf`) and `.editorconfig`. Scripts that rewrite files on Windows must read and write bytes, not text mode, which turns LF into CRLF. The normalization commit is listed in `.git-blame-ignore-revs`.
 - **Keep this file current:** when a change adds or alters an architecture rule, a convention or a workflow, update CLAUDE.md in the same commit.
