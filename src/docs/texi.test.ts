@@ -222,3 +222,34 @@ describe("parseOptionChapter", () => {
     expect(parseOptionChapter(texi, /^Options$/, true)).toEqual([{ names: ["ss"], body: ["Seek."], usage: "-ss position (input/output)", anchor: "Main-options" }]);
   });
 });
+
+describe("encoder option tables", () => {
+  const texi = [
+    "@chapter Video Encoders",
+    "@section libvpx",
+    "VP8/VP9 wrapper.",
+    "@table @option",
+    "@item g (@emph{kf-max-dist})",
+    "",
+    "@item qmin (@emph{min-q})",
+    "Minimum quantizer.",
+    "@item VP9-specific options",
+    "@table @option",
+    "@item row-mt @var{boolean}",
+    "Row threads.",
+    "@end table",
+    "@end table",
+  ].join("\n");
+  const [doc] = parseEncodersTexi(texi);
+
+  it("keeps an undescribed item apart when a blank line follows it", () => {
+    expect(doc.options.slice(0, 2).map((o) => [o.names, o.body])).toEqual([
+      [["g"], []],
+      [["qmin"], ["Minimum quantizer."]],
+    ]);
+  });
+
+  it("flattens groups of options", () => {
+    expect(doc.options.map((o) => o.names[0])).toEqual(["g", "qmin", "row-mt"]);
+  });
+});

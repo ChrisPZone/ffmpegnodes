@@ -53,8 +53,15 @@ const cliHit = (docs: OptionDocs, name: string): OptionHit | undefined => {
   return o && { option: o, from: "cli", url: `${FFMPEG_URL}#${o.anchor ?? "Options"}` };
 };
 
+/** Encoders documented under another section name. */
+const ENCODER_SECTIONS: Record<string, string> = {
+  "libvpx-vp9": "libvpx",
+  prores_ks: "prores",
+  prores_aw: "prores",
+};
+
 export function encoderDoc(docs: OptionDocs, codec: string): FilterDoc | undefined {
-  return docs.encoderByName.get(codec);
+  return docs.encoderByName.get(codec) ?? docs.encoderByName.get(ENCODER_SECTIONS[codec] ?? "");
 }
 
 export const encoderDocUrl = (e: FilterDoc) => `${CODECS_URL}#${e.anchor}`;

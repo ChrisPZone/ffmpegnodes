@@ -45,7 +45,7 @@ Built with Tauri 2 (Rust) and React.
   - **Video / Audio / Subtitle Encoder Parameters:** codec and all its options in one node. One node can feed any number of encoders, e.g. five audio tracks with the same AAC settings. Each new encoder gets its own connected parameters node.
   - **Encoders:** take their settings from a parameters node. Without one they show an error, and their stream is left out of the command.
   - **Output file:** container, stream order, per-stream language, title and disposition.
-- **Codecs:** libx264/libx265; NVIDIA NVENC (H.264, HEVC, AV1) with GPU selection; AAC, libfdk_aac and Opus; mov_text, srt, ass and WebVTT; plus stream copy.
+- **Codecs:** libx264/libx265, SVT-AV1 (AV1 on the CPU), VP9 (libvpx) and ProRes (prores_ks); NVIDIA NVENC (H.264, HEVC, AV1) with GPU selection; AAC, libfdk_aac and Opus; mov_text, srt, ass and WebVTT; plus stream copy.
 - **GPU pipeline:** CUDA decoding, Scale (CUDA), then nvenc. Frames stay on the GPU whenever every step can use them.
 - **Checks before running:**
   - Formats such as size, pixel format and sample rate are worked out along each wire.

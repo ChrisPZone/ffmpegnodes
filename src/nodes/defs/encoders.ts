@@ -115,6 +115,253 @@ function x26xParams(kind: "x264" | "x265"): EncoderParamDef[] {
   ];
 }
 
+/** SVT-AV1 (libsvtav1): the usual CPU AV1 encoder. Tune, film grain and raw parameters share -svtav1-params. */
+const SVTAV1_PARAMS: EncoderParamDef[] = [
+  {
+    name: "rc",
+    flag: "",
+    label: "Rate control",
+    type: "enum",
+    default: "crf",
+    face: true,
+    options: [
+      { value: "crf", label: "CRF (constant quality)" },
+      { value: "vbr", label: "VBR (target bitrate)" },
+    ],
+  },
+  {
+    name: "crf",
+    flag: "crf",
+    label: "CRF",
+    type: "int",
+    default: 32,
+    min: 0,
+    max: 63,
+    step: 1,
+    emitDefault: true,
+    face: true,
+    description: "Lower = better quality, bigger file. 25–35 is typical for HD.",
+    visibleIf: (p) => p.rc === "crf",
+  },
+  { name: "b", flag: "b", label: "Bitrate", type: "string", default: "3M", emitDefault: true, face: true, visibleIf: (p) => p.rc === "vbr" },
+  { name: "maxrate", flag: "maxrate", label: "Max rate", type: "string", default: "", description: "Caps the bitrate in CRF mode (capped CRF). Empty = no cap.", visibleIf: (p) => p.rc === "crf" },
+  {
+    name: "preset",
+    flag: "preset",
+    label: "Preset",
+    type: "enum",
+    default: "6",
+    emitDefault: true,
+    face: true,
+    description: "Speed against efficiency: lower is slower and smaller.",
+    options: [
+      ...["0", "1", "2", "3"].map((value) => ({ value, label: `${value} (very slow)` })),
+      { value: "4", label: "4 (slow, archiving)" },
+      { value: "5", label: "5" },
+      { value: "6", label: "6 (balanced)" },
+      { value: "7", label: "7" },
+      { value: "8", label: "8 (fast)" },
+      { value: "9", label: "9" },
+      ...["10", "11", "12", "13"].map((value) => ({ value, label: `${value} (very fast, may show artifacts)` })),
+    ],
+  },
+  {
+    name: "tune",
+    flag: "",
+    label: "Tune",
+    type: "enum",
+    default: "",
+    description: "Visual quality suits watching; PSNR is the encoder default, for measurements.",
+    options: [
+      { value: "", label: "encoder default (PSNR)" },
+      { value: "0", label: "visual quality" },
+      { value: "1", label: "PSNR" },
+    ],
+    doc: { option: "svtav1-params" },
+  },
+  { name: "g", flag: "g", label: "Keyframe interval", type: "string", default: "", description: "Frames between keyframes, e.g. 240 = 10 s at 24 fps (empty = encoder default)." },
+  {
+    name: "film_grain",
+    flag: "",
+    label: "Film grain",
+    type: "int",
+    default: 0,
+    min: 0,
+    max: 50,
+    step: 1,
+    description: "Removes grain before encoding and adds synthetic grain on playback. 4–10 for grainy film, 0 = off.",
+    doc: { option: "svtav1-params" },
+  },
+  {
+    name: "pix_fmt",
+    flag: "pix_fmt",
+    label: "Pixel format",
+    type: "enum",
+    default: "auto",
+    description: "10-bit gives smaller files with less banding, also from 8-bit sources.",
+    options: opt(["yuv420p", "yuv420p10le"]),
+  },
+  {
+    name: "params",
+    flag: "",
+    label: "-svtav1-params",
+    type: "string",
+    default: "",
+    description: "Raw SVT-AV1 parameters, colon-separated (key=value:key=value), e.g. enable-overlays=1.",
+    doc: { option: "svtav1-params" },
+  },
+];
+
+/** Tune, film grain and the raw parameters go into one -svtav1-params. */
+const svtav1Derived = (p: ParamValues): [string, string][] => {
+  const grain = Number(p.film_grain) || 0;
+  const tune = String(p.tune ?? "");
+  const parts = [tune ? `tune=${tune}` : "", grain > 0 ? `film-grain=${grain}` : "", String(p.params ?? "").trim()].filter(Boolean);
+  return parts.length ? [["svtav1-params", parts.join(":")]] : [];
+};
+
+const svtav1Summary = (p: ParamValues) => `${p.rc === "vbr" ? `VBR ${p.b}` : `CRF ${p.crf}`} · preset ${p.preset}`;
+
+/** VP9 (libvpx-vp9), WebM's codec. Constant quality needs -b:v 0 next to -crf. */
+const VP9_PARAMS: EncoderParamDef[] = [
+  {
+    name: "rc",
+    flag: "",
+    label: "Rate control",
+    type: "enum",
+    default: "crf",
+    face: true,
+    options: [
+      { value: "crf", label: "CRF (constant quality)" },
+      { value: "cq", label: "Constrained quality (CRF + max bitrate)" },
+      { value: "vbr", label: "VBR (target bitrate)" },
+    ],
+  },
+  {
+    name: "crf",
+    flag: "crf",
+    label: "CRF",
+    type: "int",
+    default: 31,
+    min: 0,
+    max: 63,
+    step: 1,
+    emitDefault: true,
+    face: true,
+    description: "Lower = better quality, bigger file. About 31 for 1080p, 24 for 4K.",
+    visibleIf: (p) => p.rc !== "vbr",
+  },
+  {
+    name: "b",
+    flag: "b",
+    label: "Bitrate",
+    type: "string",
+    default: "3M",
+    emitDefault: true,
+    face: true,
+    description: "Target bitrate (VBR), or the maximum in constrained quality.",
+    visibleIf: (p) => p.rc !== "crf",
+  },
+  {
+    name: "deadline",
+    flag: "deadline",
+    label: "Deadline",
+    type: "enum",
+    default: "good",
+    options: [
+      { value: "good", label: "good (normal)" },
+      { value: "best", label: "best (very slow)" },
+      { value: "realtime", label: "realtime (live, lower quality)" },
+    ],
+  },
+  {
+    name: "cpu_used",
+    flag: "cpu-used",
+    label: "Speed (cpu-used)",
+    type: "enum",
+    default: "2",
+    emitDefault: true,
+    face: true,
+    description: "Higher is faster and less efficient. 0–5 with deadline good.",
+    options: [
+      { value: "0", label: "0 (slowest)" },
+      { value: "1", label: "1" },
+      { value: "2", label: "2 (balanced)" },
+      { value: "3", label: "3" },
+      { value: "4", label: "4 (fast)" },
+      { value: "5", label: "5 (fastest)" },
+    ],
+  },
+  { name: "row_mt", flag: "row-mt", label: "Row multithreading", type: "bool", default: true, emitDefault: true, description: "Uses more CPU cores; much faster on HD and larger." },
+  { name: "g", flag: "g", label: "Keyframe interval", type: "string", default: "", description: "Frames between keyframes, e.g. 240 = 10 s at 24 fps (empty = encoder default)." },
+  {
+    name: "pix_fmt",
+    flag: "pix_fmt",
+    label: "Pixel format",
+    type: "enum",
+    default: "auto",
+    description: "10-bit needs VP9 profile 2, which some hardware decoders lack.",
+    options: opt(["yuv420p", "yuv420p10le", "yuv444p"]),
+  },
+];
+
+/** CRF alone would be capped by libvpx's default bitrate; -b:v 0 makes it pure constant quality. */
+const vp9Derived = (p: ParamValues): [string, string][] => (p.rc === "crf" ? [["b", "0"]] : []);
+
+const vp9Summary = (p: ParamValues) => `${p.rc === "vbr" ? `VBR ${p.b}` : p.rc === "cq" ? `CRF ${p.crf} ≤ ${p.b}` : `CRF ${p.crf}`} · speed ${p.cpu_used}`;
+
+const PRORES_PROFILES = [
+  { value: "proxy", label: "Proxy (offline editing)" },
+  { value: "lt", label: "LT" },
+  { value: "standard", label: "422 (standard)" },
+  { value: "hq", label: "422 HQ" },
+  { value: "4444", label: "4444 (with alpha)" },
+  { value: "4444xq", label: "4444 XQ" },
+];
+
+/** ProRes (prores_ks), the usual editing intermediate. */
+const PRORES_PARAMS: EncoderParamDef[] = [
+  {
+    name: "profile",
+    flag: "profile",
+    label: "Profile",
+    type: "enum",
+    default: "hq",
+    emitDefault: true,
+    face: true,
+    description: "Higher profiles keep more detail and make bigger files. 422 HQ suits most editing.",
+    options: PRORES_PROFILES,
+  },
+  {
+    name: "pix_fmt",
+    flag: "pix_fmt",
+    label: "Pixel format",
+    type: "enum",
+    default: "auto",
+    description: "auto: 4:2:2 10-bit, or 4:4:4 10-bit for the 4444 profiles. yuva444p10le keeps alpha.",
+    options: opt(["yuv422p10le", "yuv444p10le", "yuva444p10le"]),
+  },
+  {
+    name: "apple_vendor",
+    flag: "",
+    label: "Apple vendor ID",
+    type: "bool",
+    default: false,
+    description: "Tags the file as Apple-made (-vendor apl0); some Apple apps and broadcast checks expect it.",
+    doc: { option: "vendor" },
+  },
+];
+
+/** The 4444 profiles need 4:4:4 input; pick the matching pixel format unless one is set. */
+const proresDerived = (p: ParamValues): [string, string][] => {
+  const out: [string, string][] = [];
+  if (!p.pix_fmt || p.pix_fmt === "auto") out.push(["pix_fmt", String(p.profile).startsWith("4444") ? "yuv444p10le" : "yuv422p10le"]);
+  if (p.apple_vendor === true) out.push(["vendor", "apl0"]);
+  return out;
+};
+
+const proresSummary = (p: ParamValues) => `ProRes ${PRORES_PROFILES.find((x) => x.value === p.profile)?.label.replace(/ \(.*\)$/, "") ?? p.profile}`;
+
 /** nvenc's device selection; the inspector renders it as a GPU picker. "" = any (driver default). */
 export const NVENC_GPU_PARAM: EncoderParamDef = {
   name: "gpu",
@@ -290,6 +537,9 @@ const audioCommon = (bitrate: string, rates: string[]): EncoderParamDef[] => [
 export const ENCODERS: EncoderSchema[] = [
   { codec: "libx264", media: "video", label: "H.264 (libx264)", codecId: "h264", params: x26xParams("x264"), derived: cbrDerived, summary: rateSummary },
   { codec: "libx265", media: "video", label: "H.265 / HEVC (libx265)", codecId: "hevc", params: x26xParams("x265"), derived: cbrDerived, summary: rateSummary },
+  { codec: "libsvtav1", media: "video", label: "AV1 (SVT-AV1)", codecId: "av1", params: SVTAV1_PARAMS, derived: svtav1Derived, summary: svtav1Summary },
+  { codec: "libvpx-vp9", media: "video", label: "VP9 (libvpx, WebM)", codecId: "vp9", params: VP9_PARAMS, derived: vp9Derived, summary: vp9Summary },
+  { codec: "prores_ks", media: "video", label: "ProRes (prores_ks, editing)", codecId: "prores", params: PRORES_PARAMS, derived: proresDerived, summary: proresSummary },
   ...(["h264", "hevc", "av1"] as const).map(
     (kind): EncoderSchema => ({
       codec: `${kind}_nvenc`,

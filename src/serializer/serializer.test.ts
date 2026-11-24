@@ -3,7 +3,8 @@ import type { GEdge, GNode, Graph, NodeData, ProbeResult } from "../model/types"
 import { newFilterData, newInputData, newMuxerData, normalizeMuxerSlots } from "../nodes/defs";
 import { escapeFilterGraph, escapeOptionValue } from "./escape";
 import { formatCommand } from "./shellQuote";
-import { serialize } from "./index";
+import { encoderArgs, serialize } from "./index";
+import { encoderDefaults } from "../nodes/defs";
 import { encoder, pushNode } from "../test/fixtures";
 
 // ---------------------------------------------------------------- tiny graph DSL
@@ -394,5 +395,43 @@ describe("escaping", () => {
     g.toMux(enc, "out", mux);
     const r = serialize(g.graph);
     expect(r.args[r.args.indexOf("-filter_complex") + 1]).toBe("[0:v]scale=min(iw\\,1280):-2:flags=lanczos[v]");
+  });
+});
+
+describe("libsvtav1 (AV1 on the CPU)", () => {
+  const args = (params: Record<string, string | number | boolean>) =>
+    encoderArgs({ kind: "encoder", media: "video", codec: "libsvtav1", params: { ...encoderDefaults("libsvtav1", "video"), ...params }, extra: [] } as never, "v:0").join(" ");
+
+  it("emits CRF and preset by default", () => {
+    expect(args({})).toBe("-c:v:0 libsvtav1 -crf:v:0 32 -preset:v:0 6");
+  });
+
+  it("uses a target bitrate in VBR mode", () => {
+    expect(args({ rc: "vbr", b: "4M", maxrate: "8M" })).toBe("-c:v:0 libsvtav1 -b:v:0 4M -preset:v:0 6");
+  });
+
+  it("joins tune, film grain and raw parameters into one -svtav1-params", () => {
+    expect(args({ tune: "0", film_grain: 8, params: "enable-overlays=1", pix_fmt: "yuv420p10le", g: "240" })).toBe(
+      "-c:v:0 libsvtav1 -crf:v:0 32 -preset:v:0 6 -g:v:0 240 -pix_fmt:v:0 yuv420p10le -svtav1-params:v:0 tune=0:film-grain=8:enable-overlays=1",
+    );
+  });
+});
+
+describe("libvpx-vp9 and prores_ks", () => {
+  const args = (codec: string, params: Record<string, string | number | boolean>) =>
+    encoderArgs({ kind: "encoder", media: "video", codec, params: { ...encoderDefaults(codec, "video"), ...params }, extra: [] } as never, "v:0").join(" ");
+
+  it("VP9 constant quality adds -b:v 0", () => {
+    expect(args("libvpx-vp9", {})).toBe("-c:v:0 libvpx-vp9 -crf:v:0 31 -cpu-used:v:0 2 -row-mt:v:0 1 -b:v:0 0");
+  });
+
+  it("VP9 constrained quality keeps the bitrate as a cap", () => {
+    expect(args("libvpx-vp9", { rc: "cq", b: "5M", deadline: "best" })).toBe("-c:v:0 libvpx-vp9 -crf:v:0 31 -b:v:0 5M -deadline:v:0 best -cpu-used:v:0 2 -row-mt:v:0 1");
+  });
+
+  it("ProRes picks the pixel format for the profile", () => {
+    expect(args("prores_ks", {})).toBe("-c:v:0 prores_ks -profile:v:0 hq -pix_fmt:v:0 yuv422p10le");
+    expect(args("prores_ks", { profile: "4444", apple_vendor: true })).toBe("-c:v:0 prores_ks -profile:v:0 4444 -pix_fmt:v:0 yuv444p10le -vendor:v:0 apl0");
+    expect(args("prores_ks", { profile: "4444", pix_fmt: "yuva444p10le" })).toBe("-c:v:0 prores_ks -profile:v:0 4444 -pix_fmt:v:0 yuva444p10le");
   });
 });

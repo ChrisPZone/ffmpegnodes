@@ -388,11 +388,15 @@ function EncoderParamsInspector({ id, d }: { id: string; d: EncoderParamsNodeDat
   const setCodec = (codec: string) => {
     const defaults = encoderDefaults(codec, d.media);
     const defs = new Map(getEncoderSchema(codec, d.media).params.map((p) => [p.name, p]));
-    // keep values for options both codecs share (bitrate, sample rate, ...) when still valid
+    const oldDefs = new Map(schema.params.map((p) => [p.name, p]));
+    // keep values for options both codecs share (bitrate, sample rate, ...) when still valid;
+    // numbers only on the same scale (x264's CRF 0–51 is not SVT-AV1's 0–63)
     const keep = (k: string, v: unknown) => {
       const old = d.params[k];
       if (!(k in d.params) || typeof old !== typeof v) return false;
       const def = defs.get(k);
+      const was = oldDefs.get(k);
+      if (typeof v === "number" && (def?.min !== was?.min || def?.max !== was?.max)) return false;
       return def?.type !== "enum" || !def.options || def.options.some((o) => o.value === String(old));
     };
     const params = Object.fromEntries(Object.entries(defaults).map(([k, v]) => [k, keep(k, v) ? d.params[k] : v]));

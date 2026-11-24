@@ -185,6 +185,12 @@ const lineCmd = (t: string) => /^@([A-Za-z]+)(?:\s|$)/.exec(t)?.[1];
 interface Cursor {
   lines: string[];
   i: number;
+  /**
+   * An item without text followed by a blank line stands alone (encoders.texi lists options it
+   * does not describe). Otherwise it shares the next item's text, as in filters.texi's
+   * "@item width, w / @item height, h / Set the size."
+   */
+  blankEndsItem?: boolean;
 }
 
 /**
@@ -299,8 +305,9 @@ function parseTable(c: Cursor, env: string): [string[], DocBlock[]][] {
     if (cmd === "item" || cmd === "itemx") {
       terms.push(t.replace(/^@itemx?\s*/, ""));
       c.i++;
+      const blank = c.blankEndsItem && !c.lines[c.i]?.trim();
       const body = parseBlocks(c, undefined, true);
-      if (body.length) {
+      if (body.length || blank) {
         rows.push([terms, body]);
         terms = [];
       }
@@ -538,6 +545,11 @@ function rowsToOptions(blocks: DocBlock[], dashOnly: boolean, anchor?: string): 
   for (const b of blocks) {
     if (!Array.isArray(b) || b[0] !== "dl") continue;
     for (const [terms, body] of b[1]) {
+      // "VP9-specific options" / "Alternate reference frame related": a group of options
+      if (terms.length === 1 && /\b(options|related|specific)\b/i.test(stripMarks(terms[0])) && body.length && body.every((x) => Array.isArray(x) && x[0] === "dl")) {
+        out.push(...rowsToOptions(body, dashOnly, anchor));
+        continue;
+      }
       const names = [...new Set(terms.flatMap((t) => optionNames(t, dashOnly)))];
       if (!names.length) continue;
       const opt: DocOption = { names, body };
@@ -575,7 +587,7 @@ export function parseEncodersTexi(texi: string): FilterDoc[] {
     if (u.isChapter || !/Encoders$/i.test(u.chapter)) continue;
     const doc: FilterDoc = { names: [], anchor: u.anchor ?? sectionId(u.title), summary: "", body: [], options: [] };
     for (const part of splitParts(u.lines)) {
-      const blocks = parseBlocks({ lines: part.lines, i: 0 });
+      const blocks = parseBlocks({ lines: part.lines, i: 0, blankEndsItem: true });
       if (/^examples?$/i.test(part.title)) {
         if (blocks.length) doc.examples = [...(doc.examples ?? []), ...blocks];
         continue;
@@ -603,7 +615,7 @@ export function parseOptionChapter(texi: string, chapter: RegExp, dashOnly = fal
   for (const u of splitUnits(texi)) {
     if (!chapter.test(u.chapter)) continue;
     const anchor = u.anchor ?? sectionId(u.title);
-    for (const part of splitParts(u.lines)) out.push(...rowsToOptions(parseBlocks({ lines: part.lines, i: 0 }), dashOnly, anchor));
+    for (const part of splitParts(u.lines)) out.push(...rowsToOptions(parseBlocks({ lines: part.lines, i: 0, blankEndsItem: true }), dashOnly, anchor));
   }
   return dedupe(out);
 }

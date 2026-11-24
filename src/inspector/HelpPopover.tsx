@@ -367,6 +367,7 @@ function OptionHitView({ name, option, context, hit, plain }: { name: string; op
       {hit?.option.usage && <div className="help-usage"><code>{hit.option.usage}</code></div>}
       {hit && hit.from !== plain && SOURCE_NOTE[hit.from] && <p className="muted">{SOURCE_NOTE[hit.from]}</p>}
       {hit && <DocBlocks blocks={hit.option.body} />}
+      {hit && !hit.option.body.length && <p className="muted">The ffmpeg docs list this option without a description.</p>}
     </>
   );
 }
