@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security problem
+    url: https://github.com/ChrisPZone/ffmpegnodes/security/advisories/new
+    about: Please report vulnerabilities privately.
+  - name: ffmpeg usage questions
+    url: https://ffmpeg.org/documentation.html
+    about: Questions about ffmpeg itself rather than ffmpegnodes.

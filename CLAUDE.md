@@ -19,6 +19,8 @@ ffmpegnodes: a Tauri 2 + React 19 + React Flow (@xyflow/react) node editor that 
   3. `.github/workflows/release.yml` builds Windows, macOS and Linux installers into a **draft** release.
   4. When it finishes, publish the draft with release notes: a "What's new" section, then the install notes exactly as written in `releaseBody` in `release.yml`.
   - `.github/workflows/test.yml` runs typecheck and the tests on pushes to `main`.
+  - `.github/dependabot.yml` opens weekly update pull requests for npm, Cargo and GitHub Actions.
+  - Contributor docs: `CONTRIBUTING.md`, `SECURITY.md`, the issue forms in `.github/ISSUE_TEMPLATE/` and `.github/pull_request_template.md`. Keep `CONTRIBUTING.md` in line with the commands and conventions here.
   - `release.yml` fails when the bundled ffmpeg docs are from an older FFmpeg major/minor release than the newest one (`scripts/check-filter-docs.mjs`).
 
 ## Architecture rules
