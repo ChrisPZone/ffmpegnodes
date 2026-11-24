@@ -1,4 +1,4 @@
-import { addEdge, applyEdgeChanges, applyNodeChanges, type Connection, type Edge, type EdgeChange, type Node, type NodeChange } from "@xyflow/react";
+import { addEdge, type Connection, type Edge, type EdgeChangeset, type Node, type NodeChangeset } from "@xyflow/react";
 import { create } from "zustand";
 import * as ipc from "../ipc/ffmpeg";
 import type { Settings } from "../ipc/ffmpeg";
@@ -58,8 +58,8 @@ interface State {
   /** Bumped when the whole graph is replaced; the canvas re-fits the view. */
   fitNonce: number;
 
-  onNodesChange: (c: NodeChange<AppNode>[]) => void;
-  onEdgesChange: (c: EdgeChange[]) => void;
+  onNodesChange: (c: NodeChangeset<AppNode>) => void;
+  onEdgesChange: (c: EdgeChangeset) => void;
   onConnect: (c: Connection) => void;
   /**
    * Adds a node (selected). An encoder also gets a new parameters node wired to it,
@@ -159,17 +159,18 @@ export const useGraph = create<State>((set, get) => ({
   settings: loadJSON<Settings>(SETTINGS_KEY) ?? { ffmpegPath: "", ffprobePath: "" },
 
   onNodesChange: (changes) => {
-    const nodes = applyNodeChanges(changes, get().nodes);
-    const removed = changes.some((c) => c.type === "remove");
-    const sel = changes.find((c) => c.type === "select" && c.selected);
-    const desel = changes.find((c) => c.type === "select" && !c.selected && c.id === get().selectedId);
-    const selectedId = sel && sel.type === "select" ? sel.id : desel ? undefined : get().selectedId;
+    const nodes = changes.applyTo(get().nodes);
+    const removed = changes.getByType("remove").length > 0;
+    const selects = changes.getByType("select");
+    const sel = selects.find((c) => c.selected);
+    const desel = selects.find((c) => !c.selected && c.id === get().selectedId);
+    const selectedId = sel ? sel.id : desel ? undefined : get().selectedId;
     if (removed) set({ ...reconcile(nodes, get().edges), selectedId: nodes.some((n) => n.id === selectedId) ? selectedId : undefined });
     else set({ nodes, selectedId });
   },
 
   onEdgesChange: (changes) => {
-    const edges = applyEdgeChanges(changes, get().edges);
+    const edges = changes.applyTo(get().edges);
     set(reconcile(get().nodes, edges));
   },
 

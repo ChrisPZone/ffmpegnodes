@@ -32,7 +32,7 @@ export function Canvas() {
     const fit = () => {
       const nodes = rf.getNodes();
       if (tries++ < 40 && nodes.some((n) => !rf.getInternalNode(n.id)?.measured?.width)) t = setTimeout(fit, 25);
-      else void rf.fitView({ maxZoom: 1, padding: 0.15 });
+      else void rf.fitView({ maxZoom: 1, padding: "6.5%" });
     };
     t = setTimeout(fit, 30);
     return () => clearTimeout(t);
@@ -201,11 +201,11 @@ export function Canvas() {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange as never}
+        onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         isValidConnection={isValidConnection}
         deleteKeyCode={["Delete", "Backspace"]}
-        colorMode="dark"
+        forceColorMode="dark"
         fitView
         fitViewOptions={{ maxZoom: 1 }}
         minZoom={MIN_ZOOM}
