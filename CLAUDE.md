@@ -63,6 +63,7 @@ ffmpegnodes: a Tauri 2 + React 19 + React Flow (@xyflow/react) node editor that 
 - **Tests that need an encoder:** use `encoder(media, codec)` and `pushNode(nodes, edges, id, data)` from `src/test/fixtures.ts`. `pushNode` splits an inline-settings encoder into an encoder plus a wired parameters node.
 - **Project files:** saved with `app: "ffmpegnodes"`. `parseProject` must keep accepting the legacy `"ffmpeg-node-gui"`.
 - **localStorage keys:** use `storageKey(name)` / `readStored` from `src/store/storage.ts`, which gives the `ffmpegnodes.` prefix and falls back to old `ffng.` keys.
+- **License:** the project is MIT (`LICENSE`). The bundled ffmpeg docs stay LGPL-2.1-or-later as FFmpeg text. Keep `THIRD_PARTY_NOTICES.md` current when bundling other third-party material, and never ship ffmpeg binaries without revisiting it.
 - **Naming:** the project name is always `ffmpegnodes`; no other spellings.
 - **UI text:** short and plain. Media colours are video yellow, audio red, subtitle blue. Parameter pads and wires use darker shades of those (`--params-*` tokens in `src/styles.css`).
 - **After changing UI code,** check it in the browser preview and keep the console free of errors.

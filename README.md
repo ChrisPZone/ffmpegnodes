@@ -129,6 +129,10 @@ cd src-tauri && cargo test
 | `src-tauri/src/ffmpeg.rs` | runs ffprobe/ffmpeg (argument lists only, never a shell), streams `-progress`, cancel, GPU list, filter help |
 | `src-tauri/src/letterbox.rs` | black-bar detection on sampled frames |
 
+## License
+
+MIT, see [LICENSE](LICENSE). The bundled ffmpeg docs (`src/docs/*.json`) are text from FFmpeg's documentation and stay under FFmpeg's LGPL-2.1-or-later; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 ## Trademark
 
 Not affiliated with or endorsed by the FFmpeg project. FFmpeg is a trademark of Fabrice Bellard.

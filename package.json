@@ -1,6 +1,7 @@
 {
   "name": "ffmpegnodes",
   "private": true,
+  "license": "MIT",
   "version": "0.9.2",
   "type": "module",
   "scripts": {
