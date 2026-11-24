@@ -534,6 +534,56 @@ const audioCommon = (bitrate: string, rates: string[]): EncoderParamDef[] => [
   },
 ];
 
+const CHANNELS = [{ value: "1", label: "1 (mono)" }, { value: "2", label: "2 (stereo)" }, { value: "6", label: "6 (5.1)" }, { value: "8", label: "8 (7.1)" }];
+
+/** Sample rate and channel count, for encoders without a bitrate. */
+const audioFormat = (rates: string[], maxChannels = 8): EncoderParamDef[] => [
+  { name: "ar", flag: "ar", label: "Sample rate", type: "enum", default: "auto", options: opt(rates) },
+  { name: "ac", flag: "ac", label: "Channels", type: "enum", default: "auto", options: opt([]).concat(CHANNELS.filter((c) => Number(c.value) <= maxChannels)) },
+];
+
+/** Dolby Digital (ac3) and Dolby Digital Plus (eac3): up to 5.1, 32/44.1/48 kHz. */
+const dolbyParams = (bitrate: string, rates: string[]): EncoderParamDef[] => [
+  {
+    name: "b",
+    flag: "b",
+    label: "Bitrate",
+    type: "enum",
+    default: bitrate,
+    emitDefault: true,
+    face: true,
+    description: "192k–256k suits stereo, 448k–640k suits 5.1.",
+    options: rates.map((value) => ({ value })),
+  },
+  ...audioFormat(["32000", "44100", "48000"], 6),
+  { name: "dialnorm", flag: "dialnorm", label: "Dialogue level (dB)", type: "int", default: -31, min: -31, max: -1, description: "Average dialogue loudness; players use it to set the volume. -31 = no change." },
+];
+
+/** Lossless bit depth: 16 bit, or 24 bit carried in 32-bit samples. */
+const losslessDepth = (s16: string, s32: string) => (p: ParamValues): [string, string][] =>
+  p.depth === "16" ? [["sample_fmt", s16]] : p.depth === "24" ? [["sample_fmt", s32], ["bits_per_raw_sample", "24"]] : [];
+
+const DEPTH_PARAM: EncoderParamDef = {
+  name: "depth",
+  flag: "",
+  label: "Bit depth",
+  type: "enum",
+  default: "auto",
+  face: true,
+  description: "auto keeps the source's depth where it can.",
+  options: [{ value: "auto" }, { value: "16", label: "16 bit" }, { value: "24", label: "24 bit" }],
+  doc: { option: "sample_fmt" },
+};
+
+const pcm = (codec: string, label: string): EncoderSchema => ({
+  codec,
+  media: "audio",
+  label,
+  codecId: codec,
+  params: audioFormat(["44100", "48000", "96000"]),
+  summary: () => label.replace(/ \(.*\)$/, ""),
+});
+
 export const ENCODERS: EncoderSchema[] = [
   { codec: "libx264", media: "video", label: "H.264 (libx264)", codecId: "h264", params: x26xParams("x264"), derived: cbrDerived, summary: rateSummary },
   { codec: "libx265", media: "video", label: "H.265 / HEVC (libx265)", codecId: "hevc", params: x26xParams("x265"), derived: cbrDerived, summary: rateSummary },
@@ -587,6 +637,92 @@ export const ENCODERS: EncoderSchema[] = [
     ],
     summary: (p) => String(p.b),
   },
+  {
+    codec: "ac3",
+    media: "audio",
+    label: "AC-3 (Dolby Digital)",
+    codecId: "ac3",
+    params: dolbyParams("448k", ["96k", "128k", "192k", "256k", "320k", "384k", "448k", "640k"]),
+    summary: (p) => String(p.b),
+  },
+  {
+    codec: "eac3",
+    media: "audio",
+    label: "E-AC-3 (Dolby Digital Plus)",
+    codecId: "eac3",
+    params: dolbyParams("640k", ["96k", "128k", "192k", "256k", "384k", "448k", "640k", "768k", "1024k", "1536k"]),
+    summary: (p) => String(p.b),
+  },
+  {
+    codec: "libmp3lame",
+    media: "audio",
+    label: "MP3 (LAME)",
+    codecId: "mp3",
+    params: [
+      {
+        name: "rc",
+        flag: "",
+        label: "Rate control",
+        type: "enum",
+        default: "vbr",
+        face: true,
+        options: [
+          { value: "vbr", label: "VBR (quality)" },
+          { value: "cbr", label: "CBR (bitrate)" },
+        ],
+      },
+      {
+        name: "q",
+        flag: "q",
+        label: "VBR quality",
+        type: "enum",
+        default: "2",
+        emitDefault: true,
+        face: true,
+        description: "LAME's -V: 0 = best (about 245 kb/s), 2 ≈ 190 kb/s, 4 ≈ 165 kb/s.",
+        options: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"].map((value) => ({ value, label: value === "0" ? "V0 (best)" : value === "2" ? "V2 (transparent)" : `V${value}` })),
+        visibleIf: (p) => p.rc === "vbr",
+        doc: { option: "q" },
+      },
+      { name: "b", flag: "b", label: "Bitrate", type: "enum", default: "320k", emitDefault: true, face: true, options: opt(["128k", "160k", "192k", "256k", "320k"], false), visibleIf: (p) => p.rc === "cbr" },
+      ...audioFormat(["32000", "44100", "48000"], 2),
+    ],
+    summary: (p) => (p.rc === "cbr" ? String(p.b) : `V${p.q}`),
+  },
+  {
+    codec: "flac",
+    media: "audio",
+    label: "FLAC (lossless)",
+    codecId: "flac",
+    params: [
+      DEPTH_PARAM,
+      {
+        name: "compression_level",
+        flag: "compression_level",
+        label: "Compression level",
+        type: "int",
+        default: 5,
+        min: 0,
+        max: 12,
+        description: "Higher = smaller files and slower encoding. Quality is always identical.",
+      },
+      ...audioFormat(["44100", "48000", "88200", "96000", "192000"]),
+    ],
+    derived: losslessDepth("s16", "s32"),
+    summary: (p) => (p.depth === "auto" ? "lossless" : `lossless · ${p.depth} bit`),
+  },
+  {
+    codec: "alac",
+    media: "audio",
+    label: "ALAC (Apple Lossless)",
+    codecId: "alac",
+    params: [DEPTH_PARAM, ...audioFormat(["44100", "48000", "88200", "96000", "192000"])],
+    derived: losslessDepth("s16p", "s32p"),
+    summary: (p) => (p.depth === "auto" ? "lossless" : `lossless · ${p.depth} bit`),
+  },
+  pcm("pcm_s16le", "PCM 16-bit (WAV, MOV)"),
+  pcm("pcm_s24le", "PCM 24-bit (WAV, MOV)"),
+  pcm("pcm_f32le", "PCM 32-bit float (WAV, MOV)"),
   { codec: "mov_text", media: "subtitle", label: "mov_text (MP4/MOV text)", codecId: "mov_text", params: [] },
   { codec: "srt", media: "subtitle", label: "SubRip (srt)", codecId: "subrip", params: [] },
   { codec: "ass", media: "subtitle", label: "ASS/SSA", codecId: "ass", params: [] },

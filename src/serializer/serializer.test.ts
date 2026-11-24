@@ -435,3 +435,28 @@ describe("libvpx-vp9 and prores_ks", () => {
     expect(args("prores_ks", { profile: "4444", pix_fmt: "yuva444p10le" })).toBe("-c:v:0 prores_ks -profile:v:0 4444 -pix_fmt:v:0 yuva444p10le");
   });
 });
+
+describe("audio presets", () => {
+  const args = (codec: string, params: Record<string, string | number | boolean> = {}) =>
+    encoderArgs({ kind: "encoder", media: "audio", codec, params: { ...encoderDefaults(codec, "audio"), ...params }, extra: [] } as never, "a:0").join(" ");
+
+  it("AC-3 and E-AC-3 always state the bitrate", () => {
+    expect(args("ac3", { ac: "6" })).toBe("-c:a:0 ac3 -b:a:0 448k -ac:a:0 6");
+    expect(args("eac3", { dialnorm: -27 })).toBe("-c:a:0 eac3 -b:a:0 640k -dialnorm:a:0 -27");
+  });
+
+  it("MP3 uses VBR quality or a constant bitrate", () => {
+    expect(args("libmp3lame")).toBe("-c:a:0 libmp3lame -q:a:0 2");
+    expect(args("libmp3lame", { rc: "cbr" })).toBe("-c:a:0 libmp3lame -b:a:0 320k");
+  });
+
+  it("FLAC and ALAC set the bit depth through the sample format", () => {
+    expect(args("flac")).toBe("-c:a:0 flac");
+    expect(args("flac", { depth: "24", compression_level: 8 })).toBe("-c:a:0 flac -compression_level:a:0 8 -sample_fmt:a:0 s32 -bits_per_raw_sample:a:0 24");
+    expect(args("alac", { depth: "16" })).toBe("-c:a:0 alac -sample_fmt:a:0 s16p");
+  });
+
+  it("PCM needs only the codec", () => {
+    expect(args("pcm_s24le", { ar: "48000" })).toBe("-c:a:0 pcm_s24le -ar:a:0 48000");
+  });
+});

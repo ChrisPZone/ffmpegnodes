@@ -572,9 +572,9 @@ function dedupe(options: DocOption[]): DocOption[] {
   });
 }
 
-/** Encoder names of a section: its title ("libx264, libx264rgb"), else the code names in its intro. */
+/** Encoder names of a section: its title ("libx264, libx264rgb", "ac3 and ac3_fixed"), else the code names in its intro. */
 function encoderNames(title: string, summary: string): string[] {
-  const parts = title.split(/\s*,\s*/);
+  const parts = title.split(/\s*,\s*|\s+and\s+/);
   if (parts.every((p) => /^[A-Za-z0-9_-]+$/.test(p))) return parts.map((p) => p.toLowerCase());
   const codes = [...summary.matchAll(/([a-z0-9_]+)/g)].map((m) => m[1]);
   return [...new Set(codes)];

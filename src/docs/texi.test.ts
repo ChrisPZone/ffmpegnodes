@@ -253,3 +253,9 @@ describe("encoder option tables", () => {
     expect(doc.options.map((o) => o.names[0])).toEqual(["g", "qmin", "row-mt"]);
   });
 });
+
+it("names a section from a title joined with 'and'", () => {
+  const [doc] = parseEncodersTexi("@chapter Audio Encoders\n@section ac3 and ac3_fixed\nAC-3 encoders.\n@table @option\n@item -dialnorm @var{value}\nDialogue level.\n@end table\n");
+  expect(doc.names).toEqual(["ac3", "ac3_fixed"]);
+  expect(doc.options[0].names).toEqual(["dialnorm"]);
+});

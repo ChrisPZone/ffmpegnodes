@@ -8,7 +8,7 @@ const CAPS: Capabilities = {
   version: "ffmpeg version mock (browser mode — run inside Tauri for the real thing)",
   encoders: [
     ...[["libx264", "h264"], ["libx265", "hevc"], ["libsvtav1", "av1"], ["libvpx-vp9", "vp9"], ["h264_nvenc", "h264"], ["hevc_nvenc", "hevc"], ["prores_ks", "prores"], ["gif", "gif"]].map(([name, codec]) => ({ name, codec, media: "video" as const, description: name })),
-    ...[["aac", "aac"], ["libopus", "opus"], ["libmp3lame", "mp3"], ["flac", "flac"], ["ac3", "ac3"], ["pcm_s16le", "pcm_s16le"]].map(([name, codec]) => ({ name, codec, media: "audio" as const, description: name })),
+    ...[["aac", "aac"], ["libopus", "opus"], ["libmp3lame", "mp3"], ["flac", "flac"], ["ac3", "ac3"], ["eac3", "eac3"], ["alac", "alac"], ["pcm_s16le", "pcm_s16le"], ["pcm_s24le", "pcm_s24le"], ["pcm_f32le", "pcm_f32le"]].map(([name, codec]) => ({ name, codec, media: "audio" as const, description: name })),
     ...[["mov_text", "mov_text"], ["srt", "subrip"], ["ass", "ass"], ["webvtt", "webvtt"]].map(([name, codec]) => ({ name, codec, media: "subtitle" as const, description: name })),
   ],
   muxers: ["mp4", "mov", "matroska", "webm", "mpegts", "mp3", "flac", "wav", "ogg", "adts", "srt", "gif"].map((name) => ({ name, description: name })),

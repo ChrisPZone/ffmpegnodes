@@ -56,6 +56,7 @@ const cliHit = (docs: OptionDocs, name: string): OptionHit | undefined => {
 /** Encoders documented under another section name. */
 const ENCODER_SECTIONS: Record<string, string> = {
   "libvpx-vp9": "libvpx",
+  eac3: "ac3",
   prores_ks: "prores",
   prores_aw: "prores",
 };
