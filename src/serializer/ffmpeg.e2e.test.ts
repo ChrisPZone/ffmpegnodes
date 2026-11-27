@@ -1,7 +1,7 @@
 // Runs serializer output through the real ffmpeg and checks the result with ffprobe.
 // Opt-in (needs ffmpeg/ffprobe with libx265 on PATH):  FFMPEG_E2E=1 pnpm test
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -11,6 +11,7 @@ import { genericDef, newGenericFilterData, offerGeneric, parseFilterHelp, parseI
 import { negotiate } from "../validation/negotiate";
 import { validate } from "../validation/diagnostics";
 import { serialize } from "./index";
+import { detectSequence, inputDemuxArgs } from "../model/sequence";
 import { encoder, pushNode } from "../test/fixtures";
 import { buildRecodeGraph, defaultChoices, type WizardChoices } from "../wizard/build";
 import { OutputInfoParser } from "../ui/jobInfo";
@@ -457,6 +458,44 @@ describe.skipIf(!ENABLED)("real ffmpeg", () => {
     expect(p.streams.map((s) => `${s.codec_type}:${s.codec_name}`)).toEqual(["video:h264", "video:hevc", "audio:aac", "subtitle:subrip"]);
     expect(p.streams[0].width).toBe(640);
   }, 120_000);
+
+  it("reads an image sequence that starts at 1001, with audio and -shortest", () => {
+    const seqDir = join(dir, "frames");
+    mkdirSync(seqDir);
+    run("ffmpeg", ["-hide_banner", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=60", "-frames:v", "30", "-start_number", "1001", join(seqDir, "shot_%04d.png")]);
+    const wav = join(dir, "audio.wav");
+    run("ffmpeg", ["-hide_banner", "-y", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=2", wav]);
+
+    const seq = detectSequence("shot_1015.png", readdirSync(seqDir));
+    expect(seq).toEqual({ pattern: "shot_%04d.png", first: 1001, last: 1030, count: 30, missing: [], missingCount: 0 });
+    const pattern = join(seqDir, seq!.pattern);
+    const options = { ...newInputData("").options, framerate: "60", start_number: String(seq!.first) };
+    // without the start number, image2 only looks at 0..4 and finds nothing
+    expect(() => probe(pattern)).toThrow();
+    const seqProbe = JSON.parse(run("ffprobe", ["-v", "error", ...inputDemuxArgs(options), "-show_streams", "-show_format", "-of", "json", pattern])) as ProbeResult;
+    expect(Number(seqProbe.format.duration)).toBeCloseTo(0.5, 2);
+
+    const g = new G();
+    const inp = g.add({ ...newInputData(pattern), probe: seqProbe, sequence: seq!, options });
+    const aud = g.add({ ...newInputData(wav), probe: probe(wav) });
+    const v = g.add(encoder("video", "libx264"));
+    const a = g.add(encoder("audio", "aac"));
+    const out = join(dir, "sequence.mp4");
+    const mux = g.add({ ...newMuxerData(out), shortest: true });
+    g.link(inp, "f0", v, "in");
+    g.link(aud, "f0", a, "in");
+    g.link(v, "out", mux);
+    g.link(a, "out", mux);
+
+    const ser = serialize(g.graph);
+    expect(ser.args.slice(0, 6)).toEqual(["-framerate", "60", "-start_number", "1001", "-i", pattern]);
+    expect(ser.args).toContain("-shortest");
+    run("ffmpeg", ["-hide_banner", "-y", "-nostats", ...ser.args]);
+    const p = probe(out);
+    expect(p.streams.map((s) => `${s.codec_type}:${s.codec_name}`)).toEqual(["video:h264", "audio:aac"]);
+    expect(p.streams[0].avg_frame_rate).toBe("60/1");
+    expect(Number(p.format.duration)).toBeLessThan(1);
+  }, 60_000);
 
   it("job popups read the output streams from real ffmpeg stderr", () => {
     const out = join(dir, "popup.mkv");

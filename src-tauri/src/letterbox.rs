@@ -100,9 +100,11 @@ pub fn sample_times(duration: f64, o: &LetterboxOptions) -> Vec<f64> {
         .collect()
 }
 
-fn grab_frame(ff: &str, path: &str, t: f64, w: usize, h: usize) -> Result<Vec<u8>, String> {
+fn grab_frame(ff: &str, path: &str, input_args: &[String], t: f64, w: usize, h: usize) -> Result<Vec<u8>, String> {
     let out = command(ff)
-        .args(["-v", "error", "-noautorotate", "-ss", &format!("{t:.3}"), "-i", path])
+        .args(["-v", "error", "-noautorotate"])
+        .args(input_args)
+        .args(["-ss", &format!("{t:.3}"), "-i", path])
         .args(["-frames:v", "1", "-vf", "format=rgb24", "-f", "rawvideo", "pipe:1"])
         .stdin(Stdio::null())
         .output()
@@ -118,13 +120,13 @@ fn grab_frame(ff: &str, path: &str, t: f64, w: usize, h: usize) -> Result<Vec<u8
     Ok(out.stdout)
 }
 
-pub fn detect(ff: &str, path: &str, duration: f64, w: usize, h: usize, o: &LetterboxOptions) -> Result<LetterboxResult, String> {
+pub fn detect(ff: &str, path: &str, input_args: &[String], duration: f64, w: usize, h: usize, o: &LetterboxOptions) -> Result<LetterboxResult, String> {
     if !(duration > 0.0) || w == 0 || h == 0 {
         return Err("The input has no known duration or video size (probe it first).".into());
     }
     let times = sample_times(duration, o);
     let frames: Vec<Result<Vec<u8>, String>> = thread::scope(|s| {
-        let handles: Vec<_> = times.iter().map(|&t| s.spawn(move || grab_frame(ff, path, t, w, h))).collect();
+        let handles: Vec<_> = times.iter().map(|&t| s.spawn(move || grab_frame(ff, path, input_args, t, w, h))).collect();
         handles.into_iter().map(|h| h.join().unwrap_or_else(|_| Err("frame grab panicked".into()))).collect()
     });
     let mut errors = Vec::new();
@@ -153,6 +155,7 @@ pub fn detect(ff: &str, path: &str, duration: f64, w: usize, h: usize, o: &Lette
 pub async fn detect_letterbox(
     ffmpeg_path: Option<String>,
     path: String,
+    input_args: Option<Vec<String>>,
     duration: f64,
     width: u32,
     height: u32,
@@ -160,7 +163,8 @@ pub async fn detect_letterbox(
 ) -> Result<LetterboxResult, String> {
     let ff = exe(&ffmpeg_path, "ffmpeg");
     let o = options.unwrap_or_default();
-    tauri::async_runtime::spawn_blocking(move || detect(&ff, &path, duration, width as usize, height as usize, &o))
+    let ia = input_args.unwrap_or_default();
+    tauri::async_runtime::spawn_blocking(move || detect(&ff, &path, &ia, duration, width as usize, height as usize, &o))
         .await
         .map_err(|e| format!("detection failed: {e}"))?
 }
@@ -249,18 +253,18 @@ mod tests {
             p.to_string_lossy().into_owned()
         };
         let plain = make("bars.mkv", "pad=1280:960:0:120:black");
-        let r = detect("ffmpeg", &plain, 10.0, 1280, 960, &LetterboxOptions::default()).unwrap();
+        let r = detect("ffmpeg", &plain, &[], 10.0, 1280, 960, &LetterboxOptions::default()).unwrap();
         assert_eq!((r.top, r.bottom, r.usable, r.sampled), (120, 120, 9, 9));
 
         // black from 3 s to 7 s: those frames are skipped, the bars stay the same
         let fading = make("fade.mkv", "pad=1280:960:0:120:black,drawbox=c=black:t=fill:enable='between(t,3,7)'");
-        let r = detect("ffmpeg", &fading, 10.0, 1280, 960, &LetterboxOptions::default()).unwrap();
+        let r = detect("ffmpeg", &fading, &[], 10.0, 1280, 960, &LetterboxOptions::default()).unwrap();
         assert_eq!((r.top, r.bottom), (120, 120));
         assert!(r.usable < 9, "dark frames should be skipped (usable {})", r.usable);
 
         // uneven bars, as letterbox.py prints them: iw:ih-210:0:100
         let uneven = make("uneven.mkv", "pad=1280:930:0:100:black");
-        let r = detect("ffmpeg", &uneven, 10.0, 1280, 930, &LetterboxOptions::default()).unwrap();
+        let r = detect("ffmpeg", &uneven, &[], 10.0, 1280, 930, &LetterboxOptions::default()).unwrap();
         assert_eq!((r.top, r.bottom), (100, 110));
         if std::env::var("FFMPEGNODES_KEEP_LB").is_err() {
             let _ = std::fs::remove_dir_all(&dir);

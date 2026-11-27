@@ -180,7 +180,7 @@ export function nodeTitle(d: NodeData): string {
 // ---------------------------------------------------------------- factories
 
 export function newInputData(path = ""): InputNodeData {
-  return { kind: "input", path, options: { ss: "", t: "", hwaccel: "", hwaccel_device: "", gpuFrames: "auto", threads: "", r: "" } };
+  return { kind: "input", path, options: { ss: "", t: "", hwaccel: "", hwaccel_device: "", gpuFrames: "auto", threads: "", r: "", framerate: "", start_number: "", start_number_range: "", pattern_type: "", loop: "" } };
 }
 
 export function newFilterData(defId: string): FilterNodeData {

@@ -9,10 +9,11 @@ import { ENCODERS, encoderParamDocRef, getEncoderSchema, isParamVisible, withDef
 import { paramDocRef } from "../nodes/defs/filters";
 import { filterDefOf } from "../nodes/defs/generic";
 import { LETTERBOX_ID } from "../model/letterbox";
-import { useGraph } from "../store/graph";
+import { scanSequence, useGraph } from "../store/graph";
+import { isImageFile, isSequencePattern, splitPath, type SequenceInfo } from "../model/sequence";
 import { useDerived } from "../ui/derived";
 import { COMMON_FORMATS, isMp4Family, resolveFormat } from "../validation/compat";
-import { INPUT_DOC_OPTIONS } from "../docs/inputOptions";
+import { INPUT_DOC_DEMUXER, INPUT_DOC_OPTIONS } from "../docs/inputOptions";
 import { CliOptionHelp, EncoderHelpContent, EncoderOptionHelp, FilterHelpContent, HelpButton, OptionHelp } from "./HelpPopover";
 import { CommitText, Field, GpuSelect, KVTable, ParamField, Section } from "./widgets";
 
@@ -94,29 +95,137 @@ const HWACCELS = ["", "auto", "cuda", "qsv", "d3d11va", "dxva2", "videotoolbox",
 /** "?" for an Input setting, showing the docs of the ffmpeg option behind it. */
 function inputHelp(k: keyof InputOptions) {
   const option = INPUT_DOC_OPTIONS[k];
-  return option && <HelpButton label={`Help for -${option}`}>{() => <CliOptionHelp option={option} />}</HelpButton>;
+  return option && <HelpButton label={`Help for -${option}`}>{() => <CliOptionHelp option={option} demuxer={INPUT_DOC_DEMUXER[k]} />}</HelpButton>;
+}
+
+/** "1001–1240 · 238 files · 2 missing (1100, 1101)" */
+function describeSequence(s: SequenceInfo): string {
+  const missing = s.missingCount
+    ? ` · ${s.missingCount} missing (${s.missing.join(", ")}${s.missingCount > s.missing.length ? ", …" : ""})`
+    : "";
+  return `${s.first}–${s.last} · ${s.count} files${missing}`;
 }
 
 function InputInspector({ id, d }: { id: string; d: InputNodeData }) {
   const update = useUpdate<InputNodeData>(id);
+  const updateData = useGraph((s) => s.updateData);
   const probeInput = useGraph((s) => s.probeInput);
-  const setPath = (path: string) => {
-    update({ path });
+  // a numbered image file was picked: offer to read the whole sequence instead
+  const [offer, setOffer] = useState<{ path: string; seq: SequenceInfo } | null>(null);
+  const [scanError, setScanError] = useState<string>();
+
+  /** Stores the sequence a pattern path names, filling in the start number when it is empty. */
+  const rescan = async (path: string) => {
+    let seq: SequenceInfo | null = null;
+    let err: string | undefined;
+    try {
+      seq = await scanSequence(path);
+      if (!seq) err = "No matching files found.";
+    } catch (e) {
+      err = String(e);
+    }
+    setScanError(err);
+    updateData(id, (x) =>
+      x.kind === "input" && x.path.trim() === path.trim()
+        ? { ...x, sequence: seq ?? undefined, options: seq && !x.options.start_number.trim() ? { ...x.options, start_number: String(seq.first) } : x.options }
+        : x,
+    );
+  };
+
+  const setPath = async (path: string) => {
+    update({ path, sequence: undefined });
+    setOffer(null);
+    setScanError(undefined);
+    if (isSequencePattern(path)) {
+      await rescan(path);
+      void probeInput(id);
+      return;
+    }
+    void probeInput(id);
+    if (!isImageFile(path)) return;
+    try {
+      const seq = await scanSequence(path);
+      if (seq) setOffer({ path, seq });
+    } catch {
+      /* folder not readable: treat it as a single image */
+    }
+  };
+
+  const applySequence = (o: { path: string; seq: SequenceInfo }) => {
+    setOffer(null);
+    update({ path: splitPath(o.path).dir + o.seq.pattern, sequence: o.seq, options: { ...d.options, start_number: String(o.seq.first) } });
     void probeInput(id);
   };
+
   const setOpt = (k: keyof InputOptions, v: string) => update({ options: { ...d.options, [k]: v } });
+  /** For options ffprobe also gets: probe again so the streams match what ffmpeg will read. */
+  const setProbedOpt = (k: keyof InputOptions, v: string) => {
+    setOpt(k, v);
+    if (d.path.trim()) void probeInput(id);
+  };
+  const isSeq = isSequencePattern(d.path);
+  const seqOpts = (["framerate", "start_number", "start_number_range", "pattern_type", "loop"] as const).some((k) => d.options[k]?.trim());
   return (
     <>
       <Section title="File">
         <Field label="Path">
-          <CommitText value={d.path} onCommit={setPath} placeholder="/path/to/input.mkv" />
+          <CommitText value={d.path} onCommit={(p) => void setPath(p)} placeholder="/path/to/input.mkv" />
         </Field>
         <div className="row">
-          <button onClick={async () => { const p = await pickOpenFile(); if (p) setPath(p); }}>Browse…</button>
+          <button onClick={async () => { const p = await pickOpenFile(); if (p) void setPath(p); }}>Browse…</button>
           <button disabled={!d.path} onClick={() => void probeInput(id)}>Re-probe</button>
         </div>
+        {offer && offer.path === d.path && (
+          <div className="seq-offer">
+            <p>
+              Image sequence? <code>{offer.seq.pattern}</code>
+              <br />
+              <span className="muted small">{describeSequence(offer.seq)}</span>
+            </p>
+            <div className="row">
+              <button className="primary" onClick={() => applySequence(offer)}>Use sequence</button>
+              <button onClick={() => setOffer(null)}>Single image</button>
+            </div>
+          </div>
+        )}
         {d.probing && <p className="muted">Probing…</p>}
       </Section>
+      {(isSeq || seqOpts || isImageFile(d.path)) && (
+        <Section title="Image sequence" collapsed={!isSeq && !seqOpts}>
+          {isSeq && (
+            <div className="row">
+              <span className={`small ${d.sequence?.missingCount ? "warning-text" : "muted"}`}>
+                {d.sequence ? describeSequence(d.sequence) : (scanError ?? "Range not checked.")}
+              </span>
+              <span className="spacer" />
+              <button className="small" onClick={() => void rescan(d.path)}>Rescan</button>
+            </div>
+          )}
+          <Field label="Frame rate (-framerate)" help={inputHelp("framerate")}>
+            <CommitText value={d.options.framerate} onCommit={(v) => setProbedOpt("framerate", v)} placeholder="25" />
+          </Field>
+          <Field label="Start number" hint="Number of the first file" help={inputHelp("start_number")}>
+            <CommitText value={d.options.start_number} onCommit={(v) => setProbedOpt("start_number", v)} placeholder="0" />
+          </Field>
+          <Field label="Start number range" hint="How many numbers to try when looking for the first file" help={inputHelp("start_number_range")}>
+            <CommitText value={d.options.start_number_range} onCommit={(v) => setProbedOpt("start_number_range", v)} placeholder="5" />
+          </Field>
+          <Field label="Pattern type" hint="glob needs an ffmpeg built with glob support (most Windows builds lack it)" help={inputHelp("pattern_type")}>
+            <select value={d.options.pattern_type} onChange={(e) => setProbedOpt("pattern_type", e.target.value)}>
+              <option value="">Default</option>
+              <option value="sequence">sequence (%04d)</option>
+              <option value="glob">glob (*.png)</option>
+              <option value="none">none (one file)</option>
+            </select>
+          </Field>
+          <Field label="Loop" hint="Repeats the images forever: set a duration (-t) or end the output with the shortest stream" help={inputHelp("loop")}>
+            <select value={d.options.loop} onChange={(e) => setProbedOpt("loop", e.target.value)}>
+              <option value="">Off</option>
+              <option value="1">On</option>
+            </select>
+          </Field>
+        </Section>
+      )}
       {d.probe && (
         <Section title="Streams">
           <p className="muted small">
@@ -520,6 +629,9 @@ function MuxerInspector({ id, d }: { id: string; d: MuxerNodeData }) {
             <input type="checkbox" checked={d.faststart} onChange={(e) => update({ faststart: e.target.checked })} />
           </Field>
         )}
+        <Field label="End with shortest stream" hint="-shortest: stop when the first stream ends, e.g. a looped image with audio">
+          <input type="checkbox" checked={!!d.shortest} onChange={(e) => update({ shortest: e.target.checked })} />
+        </Field>
       </Section>
       <Section title={`Streams (${connected.length})`}>
         {connected.length === 0 && <p className="muted">Connect packets from encoders or inputs to the Output node.</p>}

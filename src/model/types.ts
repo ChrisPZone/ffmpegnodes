@@ -80,6 +80,20 @@ export interface ProbeResult {
 
 // ---------------------------------------------------------------- node data
 
+/** A numbered image sequence found next to a picked file (see model/sequence.ts). */
+export interface SequenceInfo {
+  /** ffmpeg image2 file name pattern, e.g. `shot_%04d.exr` (no folder). */
+  pattern: string;
+  first: number;
+  last: number;
+  /** Files found between first and last. */
+  count: number;
+  /** First missing frame numbers (capped). */
+  missing: number[];
+  missingCount: number;
+}
+
+
 export interface InputOptions {
   ss: string;
   t: string;
@@ -90,6 +104,14 @@ export interface InputOptions {
   gpuFrames: "auto" | "off";
   threads: string;
   r: string;
+  /** Image sequence (image2 demuxer) options; "" = ffmpeg default. */
+  framerate: string;
+  start_number: string;
+  start_number_range: string;
+  /** "" | "sequence" | "glob" | "none" */
+  pattern_type: string;
+  /** "1" repeats the images forever (image2 -loop). */
+  loop: string;
 }
 
 export interface InputNodeData {
@@ -99,6 +121,8 @@ export interface InputNodeData {
   probeError?: string;
   probing?: boolean;
   options: InputOptions;
+  /** Last detected image sequence for this path (shown in the Inspector, checked by validation). */
+  sequence?: SequenceInfo;
   /** Node-face UI state: which collapsible pad groups are open. Ignored by serializer/validation. */
   ui?: { packets?: boolean; subtitles?: boolean; other?: boolean };
   [k: string]: unknown;
@@ -230,6 +254,8 @@ export interface MuxerNodeData {
   /** "auto" = infer from extension, otherwise an ffmpeg muxer name. */
   format: string;
   faststart: boolean;
+  /** -shortest: stop when the shortest stream ends (e.g. a looped image with audio). */
+  shortest?: boolean;
   metadata: KeyValue[];
   /** Ordered input slots; order = output stream order. Always ends with one unconnected spare. */
   slots: MuxSlot[];

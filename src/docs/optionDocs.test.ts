@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ENCODERS, encoderParamDocRef, getEncoderSchema } from "../nodes/defs/encoders";
-import { INPUT_DOC_OPTIONS } from "./inputOptions";
+import { INPUT_DOC_DEMUXER, INPUT_DOC_OPTIONS } from "./inputOptions";
 import { cliOptionDoc, encoderOptionDoc, indexOptionDocs, type OptionDocsFile } from "./optionDocs";
 import raw from "./optionDocs.json?raw";
 
@@ -21,7 +21,9 @@ describe("bundled option docs", () => {
   });
 
   it("covers the Input node's options", () => {
-    expect(Object.values(INPUT_DOC_OPTIONS).filter((o) => !cliOptionDoc(docs, o))).toEqual([]);
+    const keys = Object.keys(INPUT_DOC_OPTIONS) as (keyof typeof INPUT_DOC_OPTIONS)[];
+    expect(keys.filter((k) => !cliOptionDoc(docs, INPUT_DOC_OPTIONS[k]!, INPUT_DOC_DEMUXER[k]))).toEqual([]);
+    expect(cliOptionDoc(docs, "framerate", "image2")?.from).toBe("demuxer");
   });
 
   it("prefers the encoder's own docs, then codec options, then ffmpeg's", () => {

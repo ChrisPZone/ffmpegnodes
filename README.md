@@ -48,11 +48,12 @@ Built with Tauri 2 (Rust) and React.
 
 - **Nodes**
   - **Input file:** probed with ffprobe. It has one frames pad and one packets pad per stream, labelled with codec, size or channels, and language.
+    - **Image sequences:** pick one numbered image (e.g. `shot_1001.exr`) and choose "Use sequence". The pattern (`shot_%04d.exr`), first and last frame and any missing frames are found in its folder. Frame rate, start number, pattern type and loop are set on the Input and also passed to ffprobe.
   - **Filters:**
     - A curated set with friendly settings: scale, crop, deinterlace, denoise, loudness, downmix, and more.
     - Every other filter in your ffmpeg build, under "All ffmpeg filters". Their options are read from `ffmpeg -h filter=…`.
     - **Help:** the **?** next to a filter or option opens the matching part of the official ffmpeg filter docs: what it does, accepted values, expression variables and examples. For "All ffmpeg filters" it also shows the type, default and range your ffmpeg reports. The docs are bundled, so this works offline.
-  - **Help on Input and Encoder Parameters:** the **?** next to an encoder or setting shows the ffmpeg docs for it: the encoder's own options (e.g. libx264 `crf`, nvenc `cq`), generic codec options (`b`, `maxrate`, `threads`) and ffmpeg options (`-ss`, `-hwaccel`, `-r`).
+  - **Help on Input and Encoder Parameters:** the **?** next to an encoder or setting shows the ffmpeg docs for it: the encoder's own options (e.g. libx264 `crf`, nvenc `cq`), generic codec options (`b`, `maxrate`, `threads`), ffmpeg options (`-ss`, `-hwaccel`, `-r`) and image sequence options (`-framerate`, `-start_number`).
   - **Remove letterbox:** detects black bars at the top and bottom of the video and crops them away.
   - **Video / Audio / Subtitle Encoder Parameters:** codec and all its options in one node. One node can feed any number of encoders, e.g. five audio tracks with the same AAC settings. Each new encoder gets its own connected parameters node.
   - **Encoders:** take their settings from a parameters node. Without one they show an error, and their stream is left out of the command.
@@ -138,7 +139,7 @@ cd src-tauri && cargo test
 | `src/wizard/` | recode wizard: dialog and graph builder with column layout |
 | `src/store/` | zustand store, duplicate, project files, autosave |
 | `src/ipc/` | typed Tauri bridge and the browser mock |
-| `src-tauri/src/ffmpeg.rs` | runs ffprobe/ffmpeg (argument lists only, never a shell), streams `-progress`, cancel, GPU list, filter help |
+| `src-tauri/src/ffmpeg.rs` | runs ffprobe/ffmpeg (argument lists only, never a shell), streams `-progress`, cancel, GPU list, filter help, folder listing |
 | `src-tauri/src/letterbox.rs` | black-bar detection on sampled frames |
 
 ## Contributing

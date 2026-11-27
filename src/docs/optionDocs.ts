@@ -10,6 +10,8 @@ export interface OptionDocsFile {
   codec: DocOption[];
   /** ffmpeg.texi "Options" (-ss, -t, -r, -hwaccel, ...). */
   cli: DocOption[];
+  /** demuxers.texi sections the app uses (image2). */
+  demuxers: FilterDoc[];
 }
 
 export interface OptionDocs extends OptionDocsFile {
@@ -31,8 +33,9 @@ export function loadOptionDocs(): Promise<OptionDocs> {
 
 const CODECS_URL = "https://ffmpeg.org/ffmpeg-codecs.html";
 const FFMPEG_URL = "https://ffmpeg.org/ffmpeg.html";
+const FORMATS_URL = "https://ffmpeg.org/ffmpeg-formats.html";
 
-export type OptionSource = "encoder" | "codec" | "cli";
+export type OptionSource = "encoder" | "codec" | "cli" | "demuxer";
 
 export interface OptionHit {
   option: DocOption;
@@ -75,7 +78,16 @@ export function encoderOptionDoc(docs: OptionDocs, codec: string, option: string
   return codecHit(docs, option) ?? cliHit(docs, option);
 }
 
-/** An ffmpeg command-line option (-ss, -hwaccel, ...), or a codec option given on the command line (-threads). */
-export function cliOptionDoc(docs: OptionDocs, option: string): OptionHit | undefined {
-  return cliHit(docs, option) ?? codecHit(docs, option);
+const demuxerHit = (docs: OptionDocs, demuxer: string, name: string): OptionHit | undefined => {
+  const d = docs.demuxers?.find((x) => x.names.includes(demuxer));
+  const o = find(d?.options, name);
+  return d && o && { option: o, from: "demuxer", url: `${FORMATS_URL}#${d.anchor}` };
+};
+
+/**
+ * An ffmpeg command-line option (-ss, -hwaccel, ...), or a codec option given on the command
+ * line (-threads). With `demuxer`, that demuxer's own option comes first (image2 -framerate).
+ */
+export function cliOptionDoc(docs: OptionDocs, option: string, demuxer?: string): OptionHit | undefined {
+  return (demuxer ? demuxerHit(docs, demuxer, option) : undefined) ?? cliHit(docs, option) ?? codecHit(docs, option);
 }

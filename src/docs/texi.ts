@@ -580,11 +580,14 @@ function encoderNames(title: string, summary: string): string[] {
   return [...new Set(codes)];
 }
 
-/** Encoder sections of encoders.texi; options come from every term list outside the examples. */
-export function parseEncodersTexi(texi: string): FilterDoc[] {
+/**
+ * Encoder sections of encoders.texi (or, with another `chapter`, demuxer sections of
+ * demuxers.texi); options come from every term list outside the examples.
+ */
+export function parseEncodersTexi(texi: string, chapter: RegExp = /Encoders$/i): FilterDoc[] {
   const docs: FilterDoc[] = [];
   for (const u of splitUnits(texi)) {
-    if (u.isChapter || !/Encoders$/i.test(u.chapter)) continue;
+    if (u.isChapter || !chapter.test(u.chapter)) continue;
     const doc: FilterDoc = { names: [], anchor: u.anchor ?? sectionId(u.title), summary: "", body: [], options: [] };
     for (const part of splitParts(u.lines)) {
       const blocks = parseBlocks({ lines: part.lines, i: 0, blankEndsItem: true });

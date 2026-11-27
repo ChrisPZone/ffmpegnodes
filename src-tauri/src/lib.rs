@@ -24,6 +24,7 @@ pub fn run() {
             ffmpeg::cancel_job,
             ffmpeg::read_text_file,
             ffmpeg::write_text_file,
+            ffmpeg::list_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

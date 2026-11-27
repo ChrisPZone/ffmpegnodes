@@ -1,5 +1,6 @@
 // Browser-only stand-in for the Rust backend. Probes are invented from the file extension.
 import type { Capabilities, ProbeResult, StreamInfo } from "../model/types";
+import { extOf, isSequencePattern } from "../model/sequence";
 import { FILTERS } from "../nodes/defs/filters";
 import type { JobHandlers } from "./ffmpeg";
 import { MOCK_FILTER_HELP, MOCK_FILTERS } from "./mockFilterHelp";
@@ -39,11 +40,35 @@ const audio = (index: number, lang = "eng"): StreamInfo => ({
   tags: { language: lang },
 });
 
-function fakeProbe(path: string): ProbeResult {
-  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+/** Folder contents for browser mode: an EXR sequence with two gaps and a PNG sequence. */
+const MOCK_DIR = [
+  ...Array.from({ length: 240 }, (_, i) => 1001 + i).filter((n) => n !== 1100 && n !== 1101).map((n) => `shot_${n}.exr`),
+  ...Array.from({ length: 120 }, (_, i) => `frame_${String(i + 1).padStart(4, "0")}.png`),
+  "notes.txt",
+];
+
+const argOf = (args: string[], flag: string) => {
+  const i = args.indexOf(flag);
+  return i >= 0 ? args[i + 1] : undefined;
+};
+
+function fakeProbe(path: string, inputArgs: string[] = []): ProbeResult {
+  const ext = extOf(path);
+  if (isSequencePattern(path) && ["png", "jpg", "jpeg", "tif", "tiff", "dpx", "exr", "bmp", "webp", "tga"].includes(ext)) {
+    // image2 reads up to the first gap; the mock just assumes 240 frames
+    const rate = argOf(inputArgs, "-framerate") ?? "25";
+    const loop = argOf(inputArgs, "-loop") === "1";
+    const fps = rate.includes("/") ? Number(rate.split("/")[0]) / Number(rate.split("/")[1]) : Number(rate) || 25;
+    const codec = ext === "jpg" || ext === "jpeg" ? "mjpeg" : ext === "tif" ? "tiff" : ext;
+    const pix_fmt = ext === "exr" ? "gbrapf32le" : ext === "dpx" ? "gbrp10le" : "rgb24";
+    return {
+      streams: [{ index: 0, codec_type: "video", codec_name: codec, width: 1920, height: 1080, pix_fmt, avg_frame_rate: rate, r_frame_rate: rate }],
+      format: { filename: path, format_name: "image2", duration: loop ? undefined : (240 / fps).toFixed(6) },
+    };
+  }
   let streams: StreamInfo[];
   if (["mp3", "m4a", "aac", "flac", "wav", "ogg", "opus"].includes(ext)) streams = [audio(0)];
-  else if (["png", "jpg", "jpeg"].includes(ext)) streams = [{ index: 0, codec_type: "video", codec_name: ext === "png" ? "png" : "mjpeg", width: 400, height: 200, pix_fmt: "rgba" }];
+  else if (["png", "jpg", "jpeg", "tif", "tiff", "dpx", "exr", "bmp", "webp", "tga"].includes(ext)) streams = [{ index: 0, codec_type: "video", codec_name: ext === "jpg" || ext === "jpeg" ? "mjpeg" : ext, width: 400, height: 200, pix_fmt: "rgba" }];
   else if (["srt", "ass", "vtt"].includes(ext)) streams = [{ index: 0, codec_type: "subtitle", codec_name: ext === "srt" ? "subrip" : ext }];
   else if (ext === "mkv") streams = [video(0), audio(1, "eng"), audio(2, "ger"), { index: 3, codec_type: "subtitle", codec_name: "subrip", tags: { language: "eng" } }];
   else streams = [video(0), audio(1)];
@@ -77,10 +102,13 @@ export const mockBackend = {
     // browser mode only knows a few help texts: pads from the io string, no options
     return `Filter ${name}\n  ${f.description}\n`;
   },
-  async probe(path: string) {
+  async probe(path: string, inputArgs: string[] = []) {
     await new Promise((r) => setTimeout(r, 150));
     if (!path.includes(".")) throw new Error(`${path}: No such file or directory (mock)`);
-    return fakeProbe(path);
+    return fakeProbe(path, inputArgs);
+  },
+  async listDir(_path: string) {
+    return MOCK_DIR;
   },
   async run(jobId: string, args: string[], h: JobHandlers) {
     h.onLog(`[mock] ffmpeg ${args.join(" ")}`);

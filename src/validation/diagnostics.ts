@@ -5,12 +5,24 @@ import { encoderOnGpuFrames, gpuResidency, isGpuEncoder, transferInto } from "..
 import type { Capabilities, Diagnostic, GNode, GpuInfo, Graph, InputNodeData, MuxerNodeData, ResolvedEncoderData } from "../model/types";
 import { resolveEncoders } from "../model/encoders";
 import { letterboxDiagnostics, LETTERBOX_ID } from "../model/letterbox";
+import { isSequencePattern } from "../model/sequence";
 import { getPads, nodeTitle } from "../nodes/defs";
 import { filterDefOf } from "../nodes/defs/generic";
 import { getEncoderSchema, isParamVisible, withDefaults } from "../nodes/defs/encoders";
 import type { SerializeResult } from "../serializer";
 import { checkCompat, isMp4Family, resolveFormat } from "./compat";
 import { conversionAt, type Negotiation } from "./negotiate";
+
+/** Ids of every node fed, directly or not, by `id`. */
+function downstream(g: Graph, id: string): Set<string> {
+  const seen = new Set<string>();
+  const todo = [id];
+  while (todo.length) {
+    const cur = todo.pop()!;
+    for (const e of g.edges) if (e.source === cur && !seen.has(e.target)) (seen.add(e.target), todo.push(e.target));
+  }
+  return seen;
+}
 
 const norm = (p: string) => p.trim().replace(/\\/g, "/").toLowerCase();
 
@@ -36,6 +48,17 @@ export function validate(graph: Graph, ser: SerializeResult, neg: Negotiation, c
             r.blocker.reason === "CPU filter" ? " Use GPU filters such as Scale (CUDA) to keep them on the GPU." : ""
           }`,
         });
+      }
+      if (d.sequence?.missingCount && isSequencePattern(d.path)) {
+        const first = d.sequence.missing[0];
+        out.push({ severity: "warning", nodeId: n.id, message: `${d.sequence.missingCount} frames of the sequence are missing. ffmpeg stops reading at the first gap (frame ${first}).` });
+      }
+      if (d.options.loop.trim() === "1" && !d.options.t.trim()) {
+        const reach = downstream(g, n.id);
+        const outs = g.nodes.filter((m) => m.data.kind === "muxer" && reach.has(m.id));
+        if (!outs.length || outs.some((m) => !(m.data as MuxerNodeData).shortest)) {
+          out.push({ severity: "warning", nodeId: n.id, message: "Loop repeats the images forever. Set a duration (-t), or turn on \"End with shortest stream\" on the Output." });
+        }
       }
       const dev = d.options.hwaccel_device?.trim();
       if (d.options.hwaccel === "cuda" && dev && gpuIndexes && !gpuIndexes.includes(dev)) {

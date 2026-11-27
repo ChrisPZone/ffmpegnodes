@@ -244,13 +244,11 @@ pub async fn list_gpus(ffmpeg_path: Option<String>, encoder: String) -> Result<V
 #[tauri::command]
 pub async fn probe_file(
     path: String,
+    input_args: Option<Vec<String>>,
     ffprobe_path: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let fp = exe(&ffprobe_path, "ffprobe");
-    let out = run_capture(
-        &fp,
-        &["-v", "error", "-show_streams", "-show_format", "-of", "json", &path],
-    )?;
+    let out = run_capture(&fp, &probe_args(&path, &input_args.unwrap_or_default()))?;
     serde_json::from_str(&out).map_err(|e| format!("Unreadable ffprobe output: {e}"))
 }
 
@@ -384,6 +382,28 @@ pub fn cancel_job(jobs: State<'_, Jobs>, job_id: String) -> Result<(), String> {
     Ok(())
 }
 
+/// ffprobe arguments: the input's demuxer options (e.g. `-framerate`, `-start_number`) go
+/// before the file, as they do on the ffmpeg command line.
+fn probe_args<'a>(path: &'a str, input_args: &'a [String]) -> Vec<&'a str> {
+    let mut a = vec!["-v", "error"];
+    a.extend(input_args.iter().map(String::as_str));
+    a.extend(["-show_streams", "-show_format", "-of", "json", path]);
+    a
+}
+
+/// Names of the files (not folders) in a folder, sorted. Used to find image sequences.
+#[tauri::command]
+pub fn list_dir(path: String) -> Result<Vec<String>, String> {
+    let rd = std::fs::read_dir(&path).map_err(|e| format!("Could not list {path}: {e}"))?;
+    let mut names: Vec<String> = rd
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
+        .filter_map(|e| e.file_name().into_string().ok())
+        .collect();
+    names.sort();
+    Ok(names)
+}
+
 #[tauri::command]
 pub fn read_text_file(path: String) -> Result<String, String> {
     std::fs::read_to_string(&path).map_err(|e| format!("Could not read {path}: {e}"))
@@ -397,6 +417,29 @@ pub fn write_text_file(path: String, contents: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn probe_args_put_input_options_before_the_file() {
+        let opts = vec!["-framerate".to_string(), "60".to_string(), "-start_number".to_string(), "1001".to_string()];
+        assert_eq!(
+            probe_args("shot_%04d.png", &opts),
+            vec!["-v", "error", "-framerate", "60", "-start_number", "1001", "-show_streams", "-show_format", "-of", "json", "shot_%04d.png"]
+        );
+    }
+
+    #[test]
+    fn lists_files_only() {
+        let dir = std::env::temp_dir().join(format!("ffmpegnodes-listdir-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        for n in ["b_0002.png", "b_0001.png"] {
+            std::fs::write(dir.join(n), b"x").unwrap();
+        }
+        let names = list_dir(dir.to_string_lossy().into_owned()).unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(names, vec!["b_0001.png", "b_0002.png"]);
+        assert!(list_dir(dir.to_string_lossy().into_owned()).is_err());
+    }
 
     #[test]
     fn validates_filter_names() {

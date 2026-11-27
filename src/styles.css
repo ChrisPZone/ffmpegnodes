@@ -196,6 +196,8 @@ code { background: var(--panel-2); padding: 0 3px; border-radius: 3px; }
 .section { border-top: 1px solid var(--border); padding: 6px 0; }
 .section summary { cursor: pointer; font-weight: 600; font-size: 12px; padding: 2px 0; color: #c7ccd6; }
 .section-body { padding: 6px 0 2px; }
+.seq-offer { margin: 6px 0; padding: 6px 8px; border-left: 3px solid var(--info); border-radius: 4px; background: var(--panel-2); }
+.seq-offer p { margin: 0 0 4px; line-height: 1.5; overflow-wrap: anywhere; }
 .field { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 2px 8px; margin: 5px 0; }
 .field-label { color: var(--muted); font-size: 12px; }
 .field-control { display: flex; min-width: 0; }

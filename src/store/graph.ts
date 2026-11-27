@@ -6,6 +6,7 @@ import { PROJECT_VERSION, type Capabilities, type FilterNodeData, type GNode, ty
 import { findPad, newEncoderParamsData, newInputData, normalizeMuxerSlots, PARAMS_PAD } from "../nodes/defs";
 import { parseFilterHelp, type FilterHelp } from "../nodes/defs/generic";
 import { letterboxOptions, letterboxSource } from "../model/letterbox";
+import { detectSequence, inputDemuxArgs, isImageFile, isSequencePattern, sequenceFromPattern, splitPath, type SequenceInfo } from "../model/sequence";
 import { checkConnection } from "../validation/connections";
 import { duplicateNodes } from "./duplicate";
 import { readStored, storageKey } from "./storage";
@@ -241,7 +242,7 @@ export const useGraph = create<State>((set, get) => ({
     }
     get().updateData(id, { probing: true, probeError: undefined } as Partial<InputNodeData>);
     try {
-      const probe = await ipc.probeFile(path, get().settings);
+      const probe = await ipc.probeFile(path, get().settings, inputDemuxArgs(node.data.options));
       get().updateData(id, (d) => (d.kind === "input" && d.path.trim() === path ? { ...d, probe, probing: false, probeError: undefined } : d));
     } catch (e) {
       get().updateData(id, (d) => (d.kind === "input" && d.path.trim() === path ? { ...d, probe: undefined, probing: false, probeError: String(e) } : d));
@@ -272,7 +273,7 @@ export const useGraph = create<State>((set, get) => ({
     }
     setState({ ...node.data.letterbox, running: true, error: undefined });
     try {
-      const r = await ipc.detectLetterbox({ path, duration, width, height, options: letterboxOptions(node.data.params) }, get().settings);
+      const r = await ipc.detectLetterbox({ path, inputArgs: inputDemuxArgs(src.input.data.options), duration, width, height, options: letterboxOptions(node.data.params) }, get().settings);
       setState({ path, height: r.height, usable: r.usable, sampled: r.sampled, warning: r.warning ?? undefined }, { top: r.top, bottom: r.bottom });
     } catch (e) {
       setState({ error: String(e) });
@@ -356,6 +357,18 @@ export const useGraph = create<State>((set, get) => ({
 }));
 
 // ---------------------------------------------------------------- project files
+
+/**
+ * The image sequence an Input path belongs to: for a numbered image file, the sequence around
+ * it; for a pattern (`shot_%04d.exr`), the files it names. Null when there is none.
+ */
+export async function scanSequence(path: string): Promise<SequenceInfo | null> {
+  const { dir, name } = splitPath(path.trim());
+  const pattern = isSequencePattern(name);
+  if (!name || (!pattern && !isImageFile(name))) return null;
+  const entries = await ipc.listDir(dir || ".");
+  return pattern ? sequenceFromPattern(name, entries) : detectSequence(name, entries);
+}
 
 export function toProject(nodes: AppNode[], edges: Edge[]): ProjectFile {
   return {

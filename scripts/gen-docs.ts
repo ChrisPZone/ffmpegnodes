@@ -1,6 +1,7 @@
 // Regenerates the bundled ffmpeg docs for the help popups from FFmpeg's texinfo sources:
 //   src/docs/filterDocs.json  filters.texi
-//   src/docs/optionDocs.json  encoders.texi, codecs.texi ("Codec Options"), ffmpeg.texi ("Options")
+//   src/docs/optionDocs.json  encoders.texi, codecs.texi ("Codec Options"), ffmpeg.texi ("Options"),
+//                             demuxers.texi (image2 only, for the Input's image sequence settings)
 //
 //   pnpm gen:docs              newest FFmpeg release
 //   pnpm gen:docs n8.0         a given tag or commit
@@ -21,6 +22,8 @@ const REQUIRED_FILTERS = ["scale", "crop", "pad", "eq", "overlay", "drawtext", "
 const REQUIRED_ENCODERS = ["libx264", "libx265", "h264_nvenc", "aac", "libopus"];
 const REQUIRED_CODEC = ["b", "maxrate", "bufsize", "threads", "g"];
 const REQUIRED_CLI = ["ss", "t", "r", "hwaccel", "hwaccel_device", "pix_fmt", "ar", "ac"];
+/** Demuxers kept in the option docs, with the options the app relies on. */
+const DEMUXERS: Record<string, string[]> = { image2: ["framerate", "start_number", "start_number_range", "pattern_type", "loop"] };
 const MIN_FILTERS = 400;
 
 const argv = process.argv.slice(2);
@@ -35,11 +38,14 @@ async function texi(name: string): Promise<string> {
   return res.text();
 }
 
-const [filtersTexi, encodersTexi, codecsTexi, ffmpegTexi] = await Promise.all(["filters.texi", "encoders.texi", "codecs.texi", "ffmpeg.texi"].map(texi));
+const [filtersTexi, encodersTexi, codecsTexi, ffmpegTexi, demuxersTexi] = await Promise.all(
+  ["filters.texi", "encoders.texi", "codecs.texi", "ffmpeg.texi", "demuxers.texi"].map(texi),
+);
 const filters = parseFiltersTexi(filtersTexi);
 const encoders = parseEncodersTexi(encodersTexi);
 const codec = parseOptionChapter(codecsTexi, /^Codec Options$/);
 const cli = parseOptionChapter(ffmpegTexi, /^Options$/, true);
+const demuxers = parseEncodersTexi(demuxersTexi, /^Demuxers$/i).filter((d) => d.names.some((n) => n in DEMUXERS));
 
 // ---------------------------------------------------------------- sanity checks
 
@@ -52,6 +58,10 @@ for (const r of REQUIRED_FILTERS) if (!filters.find((x) => x.names.includes(r))?
 for (const r of REQUIRED_ENCODERS) if (!encoders.find((x) => x.names.includes(r))?.options.length) problems.push(`encoder ${r}: no options parsed`);
 for (const r of REQUIRED_CODEC) if (!has(codec, r)) problems.push(`codec option ${r} missing`);
 for (const r of REQUIRED_CLI) if (!has(cli, r)) problems.push(`ffmpeg option -${r} missing`);
+for (const [name, opts] of Object.entries(DEMUXERS)) {
+  const d = demuxers.find((x) => x.names.includes(name));
+  for (const r of opts) if (!d || !has(d.options, r)) problems.push(`demuxer ${name}: option ${r} missing`);
+}
 
 let before: Set<string> = new Set();
 let beforeRef = "";
@@ -88,4 +98,4 @@ function write(path: string, text: string) {
   console.log(`Wrote ${path.slice(root.length + 1)} (${Math.round(text.length / 1024)} KB)`);
 }
 write(FILTERS_OUT, `{"ffmpeg":${JSON.stringify(ref)},"filters":${lines(filters)}}\n`);
-write(OPTIONS_OUT, `{"ffmpeg":${JSON.stringify(ref)},\n"encoders":${lines(encoders)},\n"codec":${lines(codec)},\n"cli":${lines(cli)}}\n`);
+write(OPTIONS_OUT, `{"ffmpeg":${JSON.stringify(ref)},\n"encoders":${lines(encoders)},\n"codec":${lines(codec)},\n"cli":${lines(cli)},\n"demuxers":${lines(demuxers)}}\n`);

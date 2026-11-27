@@ -209,6 +209,21 @@ describe("serializer", () => {
     expect(r.durationSec).toBe(30);
   });
 
+  it("emits image sequence options before -i", () => {
+    const g = new G();
+    const probe: ProbeResult = { streams: [{ index: 0, codec_type: "video", codec_name: "exr", width: 64, height: 64 }], format: { duration: "4.000000" } };
+    const seq = { framerate: "60", start_number: "1001", pattern_type: "sequence" };
+    const inp = g.add({ ...newInputData("C:/r/shot_%04d.exr"), probe, options: { ...newInputData("").options, ...seq } });
+    const mux = g.add({ ...newMuxerData("out.mkv"), shortest: true });
+    g.toMux(inp, "p0", mux);
+    const r = serialize(g.graph);
+    expect(r.args.slice(-2)).toEqual(["-shortest", "out.mkv"]);
+    expect(r.args.slice(0, r.args.indexOf("-i") + 2)).toEqual([
+      "-framerate", "60", "-start_number", "1001", "-pattern_type", "sequence", "-i", "C:/r/shot_%04d.exr",
+    ]);
+    expect(r.durationSec).toBe(4);
+  });
+
   it("reports unconnected filter inputs and missing outputs", () => {
     const g = new G();
     const ov = g.add(newFilterData("overlay"));

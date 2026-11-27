@@ -122,6 +122,22 @@ describe("diagnostics", () => {
     });
     expect(run(g).some((d) => /overwrite/.test(d.message))).toBe(true);
   });
+
+  it("warns about missing sequence frames and endless loops", () => {
+    let mux = "";
+    const sequence = { pattern: "s_%04d.png", first: 1, last: 10, count: 8, missing: [4, 5], missingCount: 2 };
+    const g = build((add, link) => {
+      const inp = add({ ...newInputData("c:/v/s_%04d.png"), probe: PROBE, sequence, options: { ...newInputData("").options, loop: "1" } });
+      mux = add(newMuxerData("c:/v/out.mkv"));
+      link(inp, "p0", mux, "");
+    });
+    const msgs = run(g).map((d) => d.message);
+    expect(msgs.some((m) => /2 frames .* missing.*frame 4/.test(m))).toBe(true);
+    expect(msgs.some((m) => /Loop repeats/.test(m))).toBe(true);
+    const m = g.nodes.find((n) => n.id === mux)!;
+    (m.data as ReturnType<typeof newMuxerData>).shortest = true;
+    expect(run(g).some((d) => /Loop repeats/.test(d.message))).toBe(false);
+  });
 });
 
 describe("GPU diagnostics", () => {

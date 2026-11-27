@@ -12,6 +12,7 @@ import {
   type ParamValue,
 } from "../model/types";
 import { resolveEncoders } from "../model/encoders";
+import { inputDemuxArgs } from "../model/sequence";
 import { encoderOnGpuFrames, gpuResidency, transferInto, uploadDevice } from "../model/hw";
 import { cudaUploadFormat } from "../model/format";
 import { negotiate } from "../validation/negotiate";
@@ -240,6 +241,7 @@ export function serialize(input: Graph): SerializeResult {
     const fmt = resolveFormat(m.data);
     if (needsExplicitFormat(m.data)) outArgs.push("-f", m.data.format);
     if (m.data.faststart && isMp4Family(fmt)) outArgs.push("-movflags", "+faststart");
+    if (m.data.shortest) outArgs.push("-shortest");
     for (const kv of m.data.metadata) {
       if (kv.key.trim()) outArgs.push("-metadata", `${kv.key.trim()}=${kv.value}`);
     }
@@ -267,6 +269,7 @@ export function serialize(input: Graph): SerializeResult {
     }
     if (o.threads.trim()) args.push("-threads", o.threads.trim());
     if (o.r.trim()) args.push("-r", o.r.trim());
+    args.push(...inputDemuxArgs(o));
     if (o.ss.trim()) args.push("-ss", o.ss.trim());
     if (o.t.trim()) args.push("-t", o.t.trim());
     args.push("-i", n.data.path.trim());

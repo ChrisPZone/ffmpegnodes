@@ -12,7 +12,7 @@ ffmpegnodes: a Tauri 2 + React 19 + React Flow (@xyflow/react) node editor that 
 - Desktop app: `pnpm tauri dev`.
 - `pnpm gen:docs [tag]`: regenerates the bundled ffmpeg docs (default: the newest FFmpeg release). It refuses to write when the result looks broken; `-- --force` overrides.
   - `src/docs/filterDocs.json` comes from `doc/filters.texi`.
-  - `src/docs/optionDocs.json` comes from `encoders.texi`, `codecs.texi` ("Codec Options") and `ffmpeg.texi` ("Options").
+  - `src/docs/optionDocs.json` comes from `encoders.texi`, `codecs.texi` ("Codec Options"), `ffmpeg.texi` ("Options") and the `image2` section of `demuxers.texi`.
 - Release:
   1. Run `pnpm release:prep X.Y.Z`. It sets the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, runs `cargo check` to update `Cargo.lock`, and regenerates the ffmpeg docs. Review the diff.
   2. Commit, push `main`, and push a tag `vX.Y.Z`.
@@ -41,7 +41,7 @@ ffmpegnodes: a Tauri 2 + React 19 + React Flow (@xyflow/react) node editor that 
   - `src/docs/texi.ts` parses the texinfo files. It has no imports, so the generator script can run it with plain node.
   - Filters: `filterDocs.json`, looked up with `optionDoc` / `filterDoc` (`src/docs/filterDocs.ts`).
   - Encoder Parameters: `encoderOptionDoc` (`src/docs/optionDocs.ts`) tries the encoder's own section, then the generic codec options, then ffmpeg's options. `encoderParamDocRef(p)` gives the option: `doc.option` if set, else `flag`, none for UI-only params (`flag: ""`) or `doc: false`. `src/docs/optionDocs.test.ts` fails when an encoder param has no docs entry.
-  - Input node: `INPUT_DOC_OPTIONS` (`src/docs/inputOptions.ts`) maps its settings to ffmpeg options, looked up with `cliOptionDoc`. `-hwaccel_output_format` is not in the ffmpeg docs, so "Keep frames on GPU" has no popup.
+  - Input node: `INPUT_DOC_OPTIONS` (`src/docs/inputOptions.ts`) maps its settings to ffmpeg options, looked up with `cliOptionDoc`. Settings listed in `INPUT_DOC_DEMUXER` (the image sequence ones) look in that demuxer's section first. `-hwaccel_output_format` is not in the ffmpeg docs, so "Keep frames on GPU" has no popup.
   - `paramDocRef(def, p)` gives a param's ffmpeg filter and option: by default `ffName` and the param name, and none for `ui` params.
   - Set `doc: { option }` on a curated param whose name differs from the ffmpeg option, `doc: { whole: true }` to show the filter's whole section (e.g. the pan expression), or `doc: false` when no ffmpeg option is behind it. When an option has no entry, its popup offers the filter's section in a collapsible block. A test (`src/docs/filterDocs.test.ts`) fails when a curated param has no docs entry.
   - Links open in the system browser through `openExternal` (`tauri-plugin-opener`).
@@ -53,6 +53,10 @@ ffmpegnodes: a Tauri 2 + React 19 + React Flow (@xyflow/react) node editor that 
   - Each job's popup is in `src/ui/JobPanels.tsx`.
   - Pure parsing lives in `src/ui/jobInfo.ts`: `parseProgress` reads `-progress pipe:1` blocks, and `OutputInfoParser` reads the stderr `Output #N` / `Stream #N:M` lines.
   - A job snapshots its inputs, outputs and devices when it starts.
+- **Image sequence inputs:** `src/model/sequence.ts` holds the pure logic.
+  - `detectSequence` / `sequenceFromPattern` find the pattern, range and missing frames from a folder listing (Rust `list_dir`). The Inspector offers "Use sequence" for a numbered image file and stores the result in the Input's `sequence`.
+  - `inputDemuxArgs(options)` is the one list of image2 options (`-framerate`, `-start_number`, …). The serializer puts it before `-i`, and `probeInput` and letterbox detection pass the same list to ffprobe/ffmpeg, so they read the same frames. Add new demuxer options there, not in one caller.
+  - The EXR decoder's `-apply_trc` was removed from FFmpeg, so it is not offered.
 - **Devices** (GPU/CPU per stage and stream): `jobDevices(graph, ser)` in `src/model/devices.ts` derives them from the rules in `src/model/hw.ts`.
   - An unset CUDA device is GPU 0; nvenc without `gpu` is "auto".
   - Per-stream devices follow `ser.outputs[k].streams`, which is in `-map` order (ffmpeg's `#file:index`).

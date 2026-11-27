@@ -352,8 +352,9 @@ const SOURCE_NOTE: Record<OptionHit["from"], string | undefined> = {
   encoder: undefined,
   codec: "A generic codec option, the same for all encoders and decoders.",
   cli: "An ffmpeg command-line option.",
+  demuxer: "An option of the image sequence demuxer (image2).",
 };
-const SOURCE_LINK: Record<OptionHit["from"], string> = { encoder: "", codec: "Codec options", cli: "ffmpeg options" };
+const SOURCE_LINK: Record<OptionHit["from"], string> = { encoder: "", codec: "Codec options", cli: "ffmpeg options", demuxer: "image2 demuxer" };
 
 function LoadState({ docs, error }: { docs?: unknown; error?: string }) {
   if (error) return <p className="error-text">Could not load the docs: {error}</p>;
@@ -403,9 +404,9 @@ export function EncoderOptionHelp({ codec, option }: { codec: string; option: st
 }
 
 /** An ffmpeg command-line option such as -ss or -hwaccel. */
-export function CliOptionHelp({ option }: { option: string }) {
+export function CliOptionHelp({ option, demuxer }: { option: string; demuxer?: string }) {
   const { docs, error } = useOptionDocs();
-  const hit = docs ? cliOptionDoc(docs, option) : undefined;
+  const hit = docs ? cliOptionDoc(docs, option, demuxer) : undefined;
   return (
     <>
       <OptionHitView name={`-${option}`} option={option} hit={hit} plain="cli" />

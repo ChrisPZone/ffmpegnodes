@@ -23,9 +23,16 @@ export async function getCapabilities(s: Settings): Promise<Capabilities> {
   return invoke<Capabilities>("get_capabilities", { ffmpegPath: opt(s.ffmpegPath) });
 }
 
-export async function probeFile(path: string, s: Settings): Promise<ProbeResult> {
-  if (!isTauri()) return mockBackend.probe(path);
-  return invoke<ProbeResult>("probe_file", { path, ffprobePath: opt(s.ffprobePath) });
+/** ffprobe a file; `inputArgs` are demuxer options placed before it (see inputDemuxArgs). */
+export async function probeFile(path: string, s: Settings, inputArgs: string[] = []): Promise<ProbeResult> {
+  if (!isTauri()) return mockBackend.probe(path, inputArgs);
+  return invoke<ProbeResult>("probe_file", { path, inputArgs, ffprobePath: opt(s.ffprobePath) });
+}
+
+/** File names in a folder (files only, sorted). */
+export async function listDir(path: string): Promise<string[]> {
+  if (!isTauri()) return mockBackend.listDir(path);
+  return invoke<string[]>("list_dir", { path });
 }
 
 /** NVIDIA GPUs in CUDA order, detected through an nvenc encoder of this ffmpeg build. */
@@ -42,7 +49,7 @@ export async function filterHelp(name: string, s: Settings): Promise<string> {
 
 /** Black bars at the top/bottom of a video, measured on frames spread over the file. */
 export async function detectLetterbox(
-  req: { path: string; duration: number; width: number; height: number; options: LetterboxOptions },
+  req: { path: string; inputArgs: string[]; duration: number; width: number; height: number; options: LetterboxOptions },
   s: Settings,
 ): Promise<LetterboxResult> {
   if (!isTauri()) return mockBackend.letterbox(req.height);
@@ -106,7 +113,7 @@ export async function guardWindowClose(allowClose: () => Promise<boolean>, busy:
 type DialogFilter = { name: string; extensions: string[] };
 
 export const MEDIA_FILTERS: DialogFilter[] = [
-  { name: "Media", extensions: ["mkv", "mp4", "mov", "webm", "avi", "ts", "m2ts", "mxf", "mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "srt", "ass", "vtt", "png", "jpg"] },
+  { name: "Media", extensions: ["mkv", "mp4", "mov", "webm", "avi", "ts", "m2ts", "mxf", "mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "srt", "ass", "vtt", "png", "jpg", "jpeg", "tif", "tiff", "dpx", "exr", "bmp", "webp", "tga"] },
   { name: "All files", extensions: ["*"] },
 ];
 
