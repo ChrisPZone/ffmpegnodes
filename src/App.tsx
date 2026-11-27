@@ -21,12 +21,20 @@ export function initApp() {
 function starterGraph() {
   const { addNode, onConnect, select } = useGraph.getState();
   addNode(newInputData(), { x: 0, y: 140 });
+  const encoders: string[] = [];
   for (const [media, y] of [["video", 0], ["audio", 260]] as const) {
     const p = addNode(newEncoderParamsData(media), { x: 300, y: y - 120 });
     const e = addNode(newEncoderData(media), { x: 580, y }, { withParams: false });
     onConnect({ source: p, sourceHandle: PARAMS_PAD, target: e, targetHandle: PARAMS_PAD });
+    encoders.push(e);
   }
-  addNode(newMuxerData(), { x: 880, y: 120 });
+  const mux = addNode(newMuxerData(), { x: 880, y: 120 });
+  // video, then audio into the Output's spare slot (a new spare appears after each wire)
+  for (const e of encoders) {
+    const m = useGraph.getState().nodes.find((n) => n.id === mux)?.data;
+    if (m?.kind !== "muxer") break;
+    onConnect({ source: e, sourceHandle: "out", target: mux, targetHandle: m.slots[m.slots.length - 1].id });
+  }
   select(undefined);
 }
 
