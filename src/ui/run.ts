@@ -24,7 +24,8 @@ export async function startRun(ser: SerializeResult, errors: number): Promise<st
   if (busy.length && !(await ipc.confirmDialog(`Another job is still writing ${busy.join(", ")}.\nRun anyway?`, { title: "Output in use", okLabel: "Run", cancelLabel: "Cancel" }))) return;
 
   const n = ++seq;
-  const id = `job-${Date.now().toString(36)}-${n}`;
+  // unique across windows: they share the Rust job table
+  const id = `job-${Date.now().toString(36)}-${n}-${crypto.randomUUID().slice(0, 6)}`;
   const args = [...RUN_PREFIX, ...ser.args];
   const duration = ser.durationSec;
   const inputs = ser.inputOrder.map((nid) => {

@@ -134,6 +134,25 @@ export async function confirmDialog(message: string, opts: { title?: string; okL
   return ask(message, { title: opts.title ?? "ffmpegnodes", kind: "warning", okLabel: opts.okLabel ?? "OK", cancelLabel: opts.cancelLabel ?? "Cancel" });
 }
 
+/** Query string of windows opened with "New window"; they keep their own autosave. */
+export const NEW_WINDOW_QUERY = "window=new";
+
+/** Opens another app window with a fresh graph (a browser tab outside Tauri). */
+export async function openNewWindow(): Promise<void> {
+  if (!isTauri()) {
+    window.open(`${location.pathname}?${NEW_WINDOW_QUERY}`, "_blank");
+    return;
+  }
+  const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+  // labels must match the "win-*" pattern in src-tauri/capabilities/default.json
+  const label = `win-${crypto.randomUUID().slice(0, 8)}`;
+  const w = new WebviewWindow(label, { url: `index.html?${NEW_WINDOW_QUERY}`, title: "ffmpegnodes", width: 1440, height: 900, minWidth: 900, minHeight: 600 });
+  await new Promise<void>((resolve, reject) => {
+    void w.once("tauri://created", () => resolve());
+    void w.once("tauri://error", (e) => reject(new Error(String(e.payload))));
+  });
+}
+
 /** Opens a web page (https only) in the system browser. */
 export async function openExternal(url: string): Promise<void> {
   if (!/^https:\/\//.test(url)) return;

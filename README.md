@@ -75,6 +75,7 @@ Built with Tauri 2 (Rust) and React.
   - **Quick-add:** press Tab or double-click the canvas, or drop a wire on empty space to add a node that is already connected.
   - **Duplicate:** Ctrl+D copies the selected nodes with their settings. Ctrl+Shift+D also copies their incoming wires.
   - **Projects:** save and open as `.ffmpegnodes.json`, with autosave.
+  - **Windows:** "New window" (Ctrl+Shift+N) opens another window with its own graph, and jobs can run in each. An extra window keeps its graph until it is closed; after a restart, only the main window's graph comes back.
 - **Run:** a live command preview, copyable for PowerShell or other shells; progress, speed and cancel.
 
 ## Prerequisites

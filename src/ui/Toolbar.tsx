@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import * as ipc from "../ipc/ffmpeg";
 import { parseProject, toProject, useGraph } from "../store/graph";
 import { useDerived } from "./derived";
@@ -60,10 +60,25 @@ export function Toolbar() {
     useGraph.getState().setGraph({ nodes: [], edges: [] });
   };
 
+  const newWindow = () => {
+    ipc.openNewWindow().catch((e) => useGraph.getState().showToast(`Could not open a window: ${e}`));
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        newWindow();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <header className="toolbar">
       <span className="brand">ffmpeg<b>nodes</b></span>
-      <button onClick={newProject}>New</button>
+      <button onClick={newProject}>New graph</button>
+      <button onClick={newWindow} title="Open another ffmpegnodes window with its own graph">New window (Ctrl+Shift+N)</button>
       <button onClick={() => setWizardOpen(true)} title="Build a recode graph for one file step by step">Wizard…</button>
       <button onClick={open}>Open…</button>
       <button onClick={() => (projectPath ? save(projectPath) : saveAs())}>Save</button>

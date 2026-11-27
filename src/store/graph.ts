@@ -111,6 +111,17 @@ const topZ = (jobs: JobState[]) => jobs.reduce((m, j) => Math.max(m, j.z), 0);
 const helpCache = new Map<string, Promise<FilterHelp>>();
 const AUTOSAVE_KEY = storageKey("autosave");
 
+/**
+ * Where a window autosaves: the main window in localStorage (restored after a restart), windows
+ * opened with "New window" in their own sessionStorage, so windows don't overwrite each other.
+ */
+export function autosaveStore(search: string): "local" | "session" {
+  return new URLSearchParams(search).get("window") === "new" ? "session" : "local";
+}
+function autosaveStorage(): Storage {
+  return autosaveStore(location.search) === "session" ? sessionStorage : localStorage;
+}
+
 function loadJSON<T>(key: string): T | undefined {
   try {
     const v = readStored(key);
@@ -403,7 +414,7 @@ export function startAutosave() {
     clearTimeout(t);
     t = setTimeout(() => {
       try {
-        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(toProject(s.nodes, s.edges)));
+        autosaveStorage().setItem(AUTOSAVE_KEY, JSON.stringify(toProject(s.nodes, s.edges)));
       } catch {
         /* ignore */
       }
@@ -414,7 +425,8 @@ export function startAutosave() {
 export function restoreAutosave(): boolean {
   const text = (() => {
     try {
-      return readStored(AUTOSAVE_KEY);
+      // readStored also reads the pre-rename key; only the main window used that one
+      return autosaveStore(location.search) === "session" ? sessionStorage.getItem(AUTOSAVE_KEY) : readStored(AUTOSAVE_KEY);
     } catch {
       return null;
     }

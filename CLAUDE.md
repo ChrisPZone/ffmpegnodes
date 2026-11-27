@@ -50,6 +50,7 @@ ffmpegnodes: a Tauri 2 + React 19 + React Flow (@xyflow/react) node editor that 
 - **Jobs:** several can run at once.
   - The store holds `jobs: JobState[]`; `startRun` / `cancelRun(id)` are in `src/ui/run.ts`.
   - Rust keys jobs by id (`run_job` / `cancel_job`). Cancel sends `q` so ffmpeg finalizes the file, and kills it after 3 s.
+  - Job ids must be unique across windows, because all windows share the Rust job table.
   - Each job's popup is in `src/ui/JobPanels.tsx`.
   - Pure parsing lives in `src/ui/jobInfo.ts`: `parseProgress` reads `-progress pipe:1` blocks, and `OutputInfoParser` reads the stderr `Output #N` / `Stream #N:M` lines.
   - A job snapshots its inputs, outputs and devices when it starts.
@@ -68,6 +69,9 @@ ffmpegnodes: a Tauri 2 + React 19 + React Flow (@xyflow/react) node editor that 
 
 - **Tests that need an encoder:** use `encoder(media, codec)` and `pushNode(nodes, edges, id, data)` from `src/test/fixtures.ts`. `pushNode` splits an inline-settings encoder into an encoder plus a wired parameters node.
 - **Project files:** saved with `app: "ffmpegnodes"`. `parseProject` must keep accepting the legacy `"ffmpeg-node-gui"`.
+- **Windows:** "New window" (`openNewWindow`, `src/ipc/ffmpeg.ts`) opens a Tauri window labelled `win-*`, which the capability file must list.
+  - Each window has its own store.
+  - The main window autosaves to localStorage. Windows opened with `?window=new` autosave to their own sessionStorage (`autosaveStore` in `src/store/graph.ts`). Settings stay shared.
 - **localStorage keys:** use `storageKey(name)` / `readStored` from `src/store/storage.ts`, which gives the `ffmpegnodes.` prefix and falls back to old `ffng.` keys.
 - **License:** the project is MIT (`LICENSE`). The bundled ffmpeg docs stay LGPL-2.1-or-later as FFmpeg text. Keep `THIRD_PARTY_NOTICES.md` current when bundling other third-party material, and never ship ffmpeg binaries without revisiting it.
 - **Naming:** the project name is always `ffmpegnodes`; no other spellings.

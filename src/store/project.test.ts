@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseProject } from "./graph";
+import { autosaveStore, parseProject } from "./graph";
 
 const file = (app: string) => JSON.stringify({ app, version: 1, nodes: [], edges: [] });
 
@@ -14,5 +14,13 @@ describe("project files", () => {
     const old = { kind: "input", path: "a.mkv", options: { ss: "5", t: "", hwaccel: "", hwaccel_device: "", gpuFrames: "auto", threads: "", r: "" } };
     const p = parseProject(JSON.stringify({ app: "ffmpegnodes", version: 1, nodes: [{ id: "i", position: { x: 0, y: 0 }, data: old }], edges: [] }));
     expect(p.nodes[0].data).toMatchObject({ options: { ss: "5", framerate: "", start_number: "", pattern_type: "", loop: "" } });
+  });
+});
+
+describe("autosave per window", () => {
+  it("keeps the main window in localStorage and new windows in sessionStorage", () => {
+    expect(autosaveStore("")).toBe("local");
+    expect(autosaveStore("?foo=1")).toBe("local");
+    expect(autosaveStore("?window=new")).toBe("session");
   });
 });
