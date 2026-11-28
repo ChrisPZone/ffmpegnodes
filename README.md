@@ -58,6 +58,7 @@ Built with Tauri 2 (Rust) and React.
   - **Video / Audio / Subtitle Encoder Parameters:** codec and all its options in one node. One node can feed any number of encoders, e.g. five audio tracks with the same AAC settings. Each new encoder gets its own connected parameters node.
   - **Encoders:** take their settings from a parameters node. Without one they show an error, and their stream is left out of the command.
   - **Output file:** container, stream order, per-stream language, title and disposition.
+    - **Image sequences:** name the output like `frames_%05d.png` (or `.tif`, `.dpx`, `.exr`, `.jpg`) and pick the matching encoder under "Image sequences": 16-bit PNG/TIFF, 10-bit DPX, float EXR or JPEG. Set the first frame number, or write a single image. 10-bit video stays 10-bit unless you choose an 8-bit format, and the Problems list says so.
 - **Codecs:** libx264/libx265, SVT-AV1 (AV1 on the CPU), VP9 (libvpx) and ProRes (prores_ks); NVIDIA NVENC (H.264, HEVC, AV1) with GPU selection; AAC, libfdk_aac, Opus, MP3, AC-3, E-AC-3, FLAC, ALAC and PCM (16/24-bit, 32-bit float); mov_text, srt, ass and WebVTT; plus stream copy.
 - **GPU pipeline:** CUDA decoding, Scale (CUDA), then nvenc. Frames stay on the GPU whenever every step can use them.
 - **Checks before running:**

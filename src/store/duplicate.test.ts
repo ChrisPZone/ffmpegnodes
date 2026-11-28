@@ -61,6 +61,8 @@ describe("duplicating nodes", () => {
     expect(nextFreePath("C:/v/out.mp4", new Set(["C:/v/out.mp4", "C:/v/out-2.mp4"]))).toBe("C:/v/out-3.mp4");
     expect(nextFreePath("C:/v/out-2.mp4", new Set(["C:/v/out-2.mp4"]))).toBe("C:/v/out-3.mp4");
     expect(nextFreePath("C:/v.dir/out", new Set())).toBe("C:/v.dir/out-2");
+    expect(nextFreePath("C:/v/frames_%05d.png", new Set())).toBe("C:/v/frames-2_%05d.png");
+    expect(nextFreePath("C:/v/frames-2_%05d.png", new Set())).toBe("C:/v/frames-3_%05d.png");
     const nodes = [node("m", newMuxerData("C:/v/out.mp4")), node("in", { ...newInputData("a.mkv"), probing: true })];
     const r = duplicateNodes(nodes, [], ["m", "in"], { newId });
     expect((r.nodes[0].data as MuxerNodeData).path).toBe("C:/v/out-2.mp4");

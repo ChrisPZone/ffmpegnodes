@@ -23,9 +23,42 @@ export const EXT_FORMAT: Record<string, string> = {
   ass: "ass",
   gif: "gif",
   mxf: "mxf",
+  // image sequences (frames_%05d.png): ffmpeg's image2 muxer, one file per frame
+  png: "image2",
+  jpg: "image2",
+  jpeg: "image2",
+  tif: "image2",
+  tiff: "image2",
+  dpx: "image2",
+  exr: "image2",
+  bmp: "image2",
+  webp: "image2",
+  tga: "image2",
 };
 
-export const COMMON_FORMATS = ["mp4", "mov", "matroska", "webm", "mpegts", "avi", "mp3", "flac", "wav", "ogg", "opus", "adts", "srt", "webvtt", "gif"];
+/** The codec each image file type holds; image2 writes the encoder's output under any name. */
+export const IMAGE_EXT_CODEC: Record<string, string> = {
+  png: "png",
+  jpg: "mjpeg",
+  jpeg: "mjpeg",
+  tif: "tiff",
+  tiff: "tiff",
+  dpx: "dpx",
+  exr: "exr",
+  bmp: "bmp",
+  webp: "webp",
+  tga: "targa",
+};
+
+/** Error when an image sequence's encoder doesn't match the file type (h264 into .png). */
+export function checkImageCodec(path: string, codecId: string | undefined): CompatResult {
+  const ext = extensionOf(path);
+  const want = IMAGE_EXT_CODEC[ext];
+  if (!want || !codecId || codecId === want) return { level: "ok" };
+  return { level: "error", message: `A .${ext} sequence needs the ${want} encoder, not ${codecId}.` };
+}
+
+export const COMMON_FORMATS = ["mp4", "mov", "matroska", "webm", "mpegts", "avi", "mp3", "flac", "wav", "ogg", "opus", "adts", "srt", "webvtt", "gif", "image2"];
 
 export function extensionOf(path: string): string {
   const m = /\.([A-Za-z0-9]+)$/.exec(path.trim());
@@ -69,6 +102,7 @@ const TABLES: Record<string, Table> = {
   srt: { subtitle: { ok: ["subrip"] }, only: ["subtitle"] },
   webvtt: { subtitle: { ok: ["webvtt"] }, only: ["subtitle"] },
   gif: { video: { ok: ["gif"] }, only: ["video"] },
+  image2: { only: ["video"] },
   mpegts: { subtitle: { ok: ["dvb_subtitle", "dvb_teletext"] } },
 };
 
@@ -82,7 +116,7 @@ export function checkCompat(fmt: string | undefined, media: Media, codecId: stri
   if (!fmt) return { level: "ok" };
   const t = TABLES[fmt];
   if (!t) return { level: "ok" };
-  if (t.only && !t.only.includes(media)) return { level: "error", message: `${fmt} cannot carry ${media} streams.` };
+  if (t.only && !t.only.includes(media)) return { level: "error", message: `${fmt === "image2" ? "An image sequence" : fmt} cannot carry ${media} streams.` };
   const rule = t[media];
   if (!rule || !codecId) return { level: "ok" };
   if (rule.warn?.[codecId]) return { level: "warning", message: rule.warn[codecId] };

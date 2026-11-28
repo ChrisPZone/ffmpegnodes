@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { pickOpenFile, pickSaveFile } from "../ipc/ffmpeg";
+import { OUTPUT_FILTERS, pickOpenFile, pickSaveFile } from "../ipc/ffmpeg";
 import { describeFormat, formatFromStream } from "../model/format";
 import { encoderOnGpuFrames, gpuResidency, isGpuEncoder, upstreamInput } from "../model/hw";
 import { encodersUsing, paramsNodeOf, PARAMS_PAD, resolveEncoder } from "../model/encoders";
@@ -10,7 +10,7 @@ import { paramDocRef } from "../nodes/defs/filters";
 import { filterDefOf } from "../nodes/defs/generic";
 import { LETTERBOX_ID } from "../model/letterbox";
 import { scanSequence, useGraph } from "../store/graph";
-import { isImageFile, isSequencePattern, splitPath, type SequenceInfo } from "../model/sequence";
+import { isImageFile, isSequencePattern, splitPath, toFramePattern, type SequenceInfo } from "../model/sequence";
 import { useDerived } from "../ui/derived";
 import { COMMON_FORMATS, isMp4Family, resolveFormat } from "../validation/compat";
 import { INPUT_DOC_DEMUXER, INPUT_DOC_OPTIONS } from "../docs/inputOptions";
@@ -492,7 +492,8 @@ function EncoderParamsInspector({ id, d }: { id: string; d: EncoderParamsNodeDat
   const schema = getEncoderSchema(d.codec, d.media);
   const available = new Set(caps?.encoders.filter((e) => e.media === d.media).map((e) => e.name) ?? []);
   // hardware encoders only when this ffmpeg has them (keep the current one visible regardless)
-  const known = ENCODERS.filter((e) => e.media === d.media && (!e.hardware || available.has(e.codec) || e.codec === d.codec));
+  const known = ENCODERS.filter((e) => e.media === d.media && !e.image && (!e.hardware || available.has(e.codec) || e.codec === d.codec));
+  const images = ENCODERS.filter((e) => e.media === d.media && e.image);
   const others = [...available].filter((n) => !ENCODERS.some((k) => k.codec === n)).sort();
 
   const setCodec = (codec: string) => {
@@ -536,6 +537,15 @@ function EncoderParamsInspector({ id, d }: { id: string; d: EncoderParamsNodeDat
                 </option>
               ))}
             </optgroup>
+            {images.length > 0 && (
+              <optgroup label="Image sequences">
+                {images.map((k) => (
+                  <option key={k.codec} value={k.codec}>
+                    {k.label}{caps && available.size && !available.has(k.codec) ? " — not in your ffmpeg" : ""}
+                  </option>
+                ))}
+              </optgroup>
+            )}
             {others.length > 0 && (
               <optgroup label="Other encoders in your ffmpeg (generic options)">
                 {others.map((n) => (
@@ -611,10 +621,18 @@ function MuxerInspector({ id, d }: { id: string; d: MuxerNodeData }) {
     <>
       <Section title="File">
         <Field label="Path">
-          <CommitText value={d.path} onCommit={(path) => update({ path })} placeholder="/path/to/output.mp4" />
+          <CommitText value={d.path} onCommit={(path) => update({ path })} placeholder="/path/to/output.mp4 or frames_%05d.png" />
         </Field>
         <div className="row">
-          <button onClick={async () => { const p = await pickSaveFile(d.path || "output.mp4"); if (p) update({ path: p }); }}>Browse…</button>
+          <button
+            onClick={async () => {
+              const p = await pickSaveFile(d.path || "output.mp4", OUTPUT_FILTERS);
+              // a picked image file becomes a numbered sequence unless one still is wanted
+              if (p) update({ path: resolveFormat({ format: d.format, path: p }) === "image2" && !d.singleImage ? toFramePattern(p) : p });
+            }}
+          >
+            Browse…
+          </button>
         </div>
         <Field label="Container" hint={d.format === "auto" ? `auto → ${fmt ?? "unknown extension"}` : undefined}>
           <select value={d.format} onChange={(e) => update({ format: e.target.value })}>
@@ -628,6 +646,18 @@ function MuxerInspector({ id, d }: { id: string; d: MuxerNodeData }) {
           <Field label="Fast start" hint="-movflags +faststart: index at the front for web streaming">
             <input type="checkbox" checked={d.faststart} onChange={(e) => update({ faststart: e.target.checked })} />
           </Field>
+        )}
+        {fmt === "image2" && (
+          <>
+            <Field label="Single image" hint="Write one still (the first frame) instead of a numbered sequence">
+              <input type="checkbox" checked={!!d.singleImage} onChange={(e) => update({ singleImage: e.target.checked })} />
+            </Field>
+            {!d.singleImage && (
+              <Field label="First frame number" hint="-start_number: number of the first file">
+                <CommitText value={d.startNumber ?? ""} onCommit={(v) => update({ startNumber: v })} placeholder="1" />
+              </Field>
+            )}
+          </>
         )}
         <Field label="End with shortest stream" hint="-shortest: stop when the first stream ends, e.g. a looped image with audio">
           <input type="checkbox" checked={!!d.shortest} onChange={(e) => update({ shortest: e.target.checked })} />

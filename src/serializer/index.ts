@@ -242,6 +242,10 @@ export function serialize(input: Graph): SerializeResult {
     if (needsExplicitFormat(m.data)) outArgs.push("-f", m.data.format);
     if (m.data.faststart && isMp4Family(fmt)) outArgs.push("-movflags", "+faststart");
     if (m.data.shortest) outArgs.push("-shortest");
+    if (fmt === "image2") {
+      if (m.data.singleImage) outArgs.push("-frames:v", "1", "-update", "1");
+      else if (m.data.startNumber?.trim()) outArgs.push("-start_number", m.data.startNumber.trim());
+    }
     for (const kv of m.data.metadata) {
       if (kv.key.trim()) outArgs.push("-metadata", `${kv.key.trim()}=${kv.value}`);
     }

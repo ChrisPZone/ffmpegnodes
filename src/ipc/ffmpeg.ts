@@ -117,6 +117,13 @@ export const MEDIA_FILTERS: DialogFilter[] = [
   { name: "All files", extensions: ["*"] },
 ];
 
+/** Save dialog of an Output: video files or a numbered image sequence. */
+export const OUTPUT_FILTERS: DialogFilter[] = [
+  { name: "Video / audio", extensions: ["mp4", "mkv", "mov", "webm", "ts", "mxf", "mp3", "m4a", "flac", "wav", "opus", "gif"] },
+  { name: "Image sequence", extensions: ["png", "tif", "tiff", "dpx", "exr", "jpg"] },
+  { name: "All files", extensions: ["*"] },
+];
+
 export const PROJECT_FILTERS: DialogFilter[] = [{ name: "ffmpegnodes graph", extensions: ["json"] }];
 
 export async function pickOpenFile(filters: DialogFilter[] = MEDIA_FILTERS): Promise<string | null> {

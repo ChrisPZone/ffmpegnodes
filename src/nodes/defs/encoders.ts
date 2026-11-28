@@ -28,6 +28,8 @@ export interface EncoderSchema {
   codecId: string;
   /** Hardware encoder: only offered when the user's ffmpeg has it. */
   hardware?: boolean;
+  /** Writes still images (png, tiff, ...): offered under "Image sequences", for image outputs. */
+  image?: boolean;
   params: EncoderParamDef[];
   /** Additional derived options, e.g. CBR's minrate/maxrate. */
   derived?: (p: ParamValues) => [string, string][];
@@ -584,6 +586,98 @@ const pcm = (codec: string, label: string): EncoderSchema => ({
   summary: () => label.replace(/ \(.*\)$/, ""),
 });
 
+// ---------------------------------------------------------------- image sequences
+
+const imagePixFmt = (formats: string[], description: string): EncoderParamDef => ({
+  name: "pix_fmt",
+  flag: "pix_fmt",
+  label: "Pixel format",
+  type: "enum",
+  default: "auto",
+  face: true,
+  description,
+  options: opt(formats),
+});
+
+const imageSummary = (p: ParamValues) => (p.pix_fmt && p.pix_fmt !== "auto" ? String(p.pix_fmt) : "");
+
+const IMAGE_ENCODERS: EncoderSchema[] = [
+  {
+    codec: "png",
+    media: "video",
+    label: "PNG",
+    codecId: "png",
+    image: true,
+    params: [
+      imagePixFmt(["rgb24", "rgba", "rgb48be", "rgba64be", "gray", "gray16be"], "rgb48be keeps 10-bit and deeper sources (16 bits per channel). auto: chosen by ffmpeg."),
+      { name: "compression_level", flag: "compression_level", label: "Compression", type: "int", default: 5, min: 0, max: 9, description: "0 = fastest, 9 = smallest. Lossless either way." },
+      { name: "pred", flag: "pred", label: "Prediction", type: "enum", default: "auto", options: opt(["none", "sub", "up", "avg", "paeth", "mixed"]) },
+    ],
+    summary: imageSummary,
+  },
+  {
+    codec: "tiff",
+    media: "video",
+    label: "TIFF",
+    codecId: "tiff",
+    image: true,
+    params: [
+      imagePixFmt(["rgb24", "rgba", "rgb48le", "rgba64le", "gray", "gray16le"], "rgb48le keeps 10-bit and deeper sources (16 bits per channel). auto: chosen by ffmpeg."),
+      {
+        name: "compression_algo",
+        flag: "compression_algo",
+        label: "Compression",
+        type: "enum",
+        default: "auto",
+        options: opt(["packbits", "raw", "lzw", "deflate"]),
+        description: "auto: packbits. All are lossless.",
+        doc: false,
+      },
+    ],
+    summary: imageSummary,
+  },
+  {
+    codec: "dpx",
+    media: "video",
+    label: "DPX",
+    codecId: "dpx",
+    image: true,
+    params: [imagePixFmt(["rgb24", "rgb48le", "gbrp10le", "gbrp12le", "rgba64le"], "gbrp10le: 10-bit RGB, the usual DPX for film and grading.")],
+    summary: imageSummary,
+  },
+  {
+    codec: "exr",
+    media: "video",
+    label: "OpenEXR (float)",
+    codecId: "exr",
+    image: true,
+    params: [
+      imagePixFmt(["gbrpf32le", "gbrapf32le"], "32-bit float RGB (gbrapf32le adds alpha)."),
+      { name: "format", flag: "format", label: "Precision", type: "enum", default: "auto", options: [{ value: "auto", label: "auto (float)" }, { value: "half" }, { value: "float" }], description: "half: 16-bit float, half the size.", doc: false },
+      { name: "compression", flag: "compression", label: "Compression", type: "enum", default: "auto", options: [{ value: "auto", label: "auto (none)" }, { value: "rle" }, { value: "zip1" }, { value: "zip16" }], doc: false },
+    ],
+    summary: (p) => [p.format && p.format !== "auto" ? String(p.format) : "", imageSummary(p)].filter(Boolean).join(" · "),
+  },
+  {
+    codec: "mjpeg",
+    media: "video",
+    label: "JPEG (mjpeg)",
+    codecId: "mjpeg",
+    image: true,
+    params: [
+      { name: "q", flag: "q", label: "Quality", type: "int", default: 2, min: 1, max: 31, face: true, emitDefault: true, description: "2 = best, 31 = worst." },
+      imagePixFmt(["yuvj420p", "yuvj444p"], "8 bits only. yuvj444p keeps full colour detail."),
+    ],
+    summary: (p) => `q ${p.q ?? 2}`,
+  },
+];
+
+/** Image pixel formats with 8 bits per channel. */
+export const EIGHT_BIT_IMAGE_FMTS = new Set(["rgb24", "rgba", "gray", "pal8", "yuvj420p", "yuvj444p", "yuv420p", "yuv444p"]);
+
+/** The 16-bit (or 10-bit) pixel format of an image encoder, for sources deeper than 8 bits. */
+export const DEEP_IMAGE_PIX_FMT: Record<string, string> = { png: "rgb48be", tiff: "rgb48le", dpx: "gbrp10le" };
+
 export const ENCODERS: EncoderSchema[] = [
   { codec: "libx264", media: "video", label: "H.264 (libx264)", codecId: "h264", params: x26xParams("x264"), derived: cbrDerived, summary: rateSummary },
   { codec: "libx265", media: "video", label: "H.265 / HEVC (libx265)", codecId: "hevc", params: x26xParams("x265"), derived: cbrDerived, summary: rateSummary },
@@ -727,6 +821,7 @@ export const ENCODERS: EncoderSchema[] = [
   { codec: "srt", media: "subtitle", label: "SubRip (srt)", codecId: "subrip", params: [] },
   { codec: "ass", media: "subtitle", label: "ASS/SSA", codecId: "ass", params: [] },
   { codec: "webvtt", media: "subtitle", label: "WebVTT", codecId: "webvtt", params: [] },
+  ...IMAGE_ENCODERS,
 ];
 
 const GENERIC: Record<EncoderMedia, EncoderParamDef[]> = {

@@ -209,6 +209,24 @@ describe("serializer", () => {
     expect(r.durationSec).toBe(30);
   });
 
+  it("writes image sequences with a start number, or one still", () => {
+    const png = encoder("video", "png");
+    const mk = (mux: ReturnType<typeof newMuxerData>) => {
+      const g = new G();
+      const inp = g.add({ ...newInputData("in.mkv"), probe: MKV_PROBE });
+      const e = g.add({ ...png, params: { ...png.params, pix_fmt: "rgb48be" } });
+      const m = g.add(mux);
+      g.link(inp, "f0", e, "in");
+      g.toMux(e, "out", m);
+      return serialize(g.graph).args;
+    };
+    const seq = mk({ ...newMuxerData("C:/o/f_%05d.png"), startNumber: "1001" });
+    expect(seq).not.toContain("-f");
+    expect(seq.slice(-7)).toEqual(["-c:v:0", "png", "-pix_fmt:v:0", "rgb48be", "-start_number", "1001", "C:/o/f_%05d.png"]);
+    const still = mk({ ...newMuxerData("C:/o/still.png"), singleImage: true, startNumber: "5" });
+    expect(still.slice(-6)).toEqual(["rgb48be", "-frames:v", "1", "-update", "1", "C:/o/still.png"]);
+  });
+
   it("emits image sequence options before -i", () => {
     const g = new G();
     const probe: ProbeResult = { streams: [{ index: 0, codec_type: "video", codec_name: "exr", width: 64, height: 64 }], format: { duration: "4.000000" } };

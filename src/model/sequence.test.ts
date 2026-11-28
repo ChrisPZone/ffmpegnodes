@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectSequence, inputDemuxArgs, isSequencePattern, numberedName, sequenceFromPattern, splitPath } from "./sequence";
+import { detectSequence, inputDemuxArgs, isSequencePattern, numberedName, sequenceFromPattern, splitPath, toFramePattern } from "./sequence";
 
 const range = (a: number, b: number, f: (n: number) => string) => Array.from({ length: b - a + 1 }, (_, i) => f(a + i));
 
@@ -58,6 +58,16 @@ describe("sequenceFromPattern", () => {
     expect(sequenceFromPattern("50%%_%02d.png", files)).toMatchObject({ first: 1, last: 2 });
     expect(sequenceFromPattern("other_%04d.exr", files)).toBeNull();
     expect(sequenceFromPattern("shot.exr", files)).toBeNull();
+  });
+});
+
+describe("toFramePattern", () => {
+  it("adds a frame number before the extension", () => {
+    expect(toFramePattern("C:\\out\\frames.png")).toBe("C:\\out\\frames_%05d.png");
+    expect(toFramePattern("/out/shot_.exr")).toBe("/out/shot_%05d.exr");
+    expect(toFramePattern("/out/50%.png")).toBe("/out/50%%_%05d.png");
+    expect(toFramePattern("/out/frames")).toBe("/out/frames_%05d");
+    expect(toFramePattern("/out/f_%04d.png")).toBe("/out/f_%04d.png");
   });
 });
 

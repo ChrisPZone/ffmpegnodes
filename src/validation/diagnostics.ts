@@ -5,12 +5,12 @@ import { encoderOnGpuFrames, gpuResidency, isGpuEncoder, transferInto } from "..
 import type { Capabilities, Diagnostic, GNode, GpuInfo, Graph, InputNodeData, MuxerNodeData, ResolvedEncoderData } from "../model/types";
 import { resolveEncoders } from "../model/encoders";
 import { letterboxDiagnostics, LETTERBOX_ID } from "../model/letterbox";
-import { isSequencePattern } from "../model/sequence";
-import { getPads, nodeTitle } from "../nodes/defs";
+import { isSequencePattern, toFramePattern } from "../model/sequence";
+import { encoderDefaults, getPads, nodeTitle } from "../nodes/defs";
 import { filterDefOf } from "../nodes/defs/generic";
-import { getEncoderSchema, isParamVisible, withDefaults } from "../nodes/defs/encoders";
+import { DEEP_IMAGE_PIX_FMT, EIGHT_BIT_IMAGE_FMTS, getEncoderSchema, isParamVisible, withDefaults } from "../nodes/defs/encoders";
 import type { SerializeResult } from "../serializer";
-import { checkCompat, isMp4Family, resolveFormat } from "./compat";
+import { checkCompat, checkImageCodec, extensionOf, IMAGE_EXT_CODEC, isMp4Family, resolveFormat } from "./compat";
 import { conversionAt, type Negotiation } from "./negotiate";
 
 /** Ids of every node fed, directly or not, by `id`. */
@@ -147,6 +147,22 @@ export function validate(graph: Graph, ser: SerializeResult, neg: Negotiation, c
     }
     const c = checkCompat(fmt, j.media, codecId);
     if (c.level !== "ok") out.push({ severity: c.level, nodeId: m.id, edgeId: j.edgeId, message: c.message! });
+    if (fmt === "image2" && j.media === "video") {
+      const ic = checkImageCodec(m.data.path, codecId);
+      if (ic.level !== "ok") {
+        const want = IMAGE_EXT_CODEC[extensionOf(m.data.path)];
+        const encName = want === "webp" ? "libwebp" : want;
+        const enc = j.source.kind === "encode" ? (nodes.get(j.source.encoderId) as GNode<ResolvedEncoderData>) : undefined;
+        out.push({
+          severity: "error",
+          nodeId: m.id,
+          edgeId: j.edgeId,
+          message: ic.message!,
+          // the codec lives on the parameters node
+          fix: enc?.data.paramsId ? { label: `Use ${encName}`, nodeId: enc.data.paramsId, patch: { codec: encName, params: encoderDefaults(encName, "video") } } : undefined,
+        });
+      }
+    }
 
     const slotIdx = m.data.slots.findIndex((s) => s.id === j.slotId);
     const slot = m.data.slots[slotIdx];
@@ -163,6 +179,18 @@ export function validate(graph: Graph, ser: SerializeResult, neg: Negotiation, c
     if (j.source.kind === "copy" && !fmt && m.data.path.trim()) {
       out.push({ severity: "warning", nodeId: m.id, message: "Unknown file extension; choose a container format." });
     }
+  }
+
+  // image sequences need a frame number in the file name (or a single image)
+  for (const o of ser.outputs) {
+    const m = nodes.get(o.nodeId) as GNode<MuxerNodeData>;
+    if (resolveFormat(m.data) !== "image2" || m.data.singleImage || !o.path || isSequencePattern(o.path)) continue;
+    out.push({
+      severity: "error",
+      nodeId: m.id,
+      message: 'An image sequence needs a frame number in the file name, e.g. frames_%05d.png (or turn on "Single image").',
+      fix: { label: "Number the frames", nodeId: m.id, patch: { path: toFramePattern(m.data.path.trim()) } },
+    });
   }
 
   // file name collisions
@@ -233,6 +261,31 @@ function checkEncoder(
     }
   }
   const conv = conversionAt(fmt, d);
+  if (schema.image && d.media === "video") {
+    const src = fmt?.media === "video" ? fmt.pix_fmt : undefined;
+    const set = d.params.pix_fmt && d.params.pix_fmt !== "auto" ? String(d.params.pix_fmt) : undefined;
+    // auto keeps the depth (ffmpeg picks rgb48 / gbrp10 for 10-bit input); an explicit 8-bit format drops it
+    if (src && TEN_BIT_PIX_FMTS.test(src) && d.codec === "mjpeg") {
+      out.push({ severity: "warning", nodeId: n.id, message: `The source is ${src}, but JPEG keeps only 8 bits per channel. Use PNG, TIFF or DPX to keep the depth.` });
+    } else if (src && TEN_BIT_PIX_FMTS.test(src) && set && EIGHT_BIT_IMAGE_FMTS.has(set)) {
+      const deep = DEEP_IMAGE_PIX_FMT[d.codec];
+      out.push({
+        severity: "warning",
+        nodeId: n.id,
+        message: `The source is ${src} but ${set} keeps only 8 bits per channel; smooth gradients may band.`,
+        fix: deep ? { label: `Use ${deep}`, nodeId: target, patch: { params: { ...d.params, pix_fmt: deep } } } : undefined,
+      });
+    }
+    if (conv) {
+      // YUV video becomes RGB images: expected, but the colour matrix decides how it looks
+      out.push({
+        severity: "info",
+        nodeId: n.id,
+        message: `Frames are converted for the images (${conv}). Untagged video is read as BT.601; if colours look off, set the input colour matrix with Scale.`,
+      });
+    }
+    return;
+  }
   if (conv) {
     // -ar/-ac on the encoder is the intended friendly path for audio (shown on the edge);
     // a silent pixel-format conversion is worth a warning.

@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { GEdge, GNode, Graph, NodeData, ProbeResult } from "../model/types";
 import { newFilterData, newInputData, newMuxerData, normalizeMuxerSlots } from "../nodes/defs";
 import { serialize } from "../serializer";
-import { checkCompat } from "./compat";
+import { checkCompat, checkImageCodec, resolveFormat } from "./compat";
 import { checkConnection } from "./connections";
 import { validate } from "./diagnostics";
 import { negotiate } from "./negotiate";
-import { encoder, pushNode } from "../test/fixtures";
+import { encoder, paramsIdOf, pushNode } from "../test/fixtures";
 
 const PROBE: ProbeResult = {
   format: { duration: "5" },
@@ -228,5 +228,56 @@ describe("compat table", () => {
     expect(checkCompat("mp4", "video", "vp9").level).toBe("warning");
     expect(checkCompat("matroska", "subtitle", "subrip").level).toBe("ok");
     expect(checkCompat("adts", "video", "h264").level).toBe("error");
+  });
+});
+
+describe("image sequence outputs", () => {
+  const PROBE10: ProbeResult = { format: { duration: "5" }, streams: [{ ...PROBE.streams[0], pix_fmt: "yuv420p10le" }, PROBE.streams[1]] };
+  const imageGraph = (path: string, enc = encoder("video", "png"), probe = PROBE, audio = false) => {
+    let mux = "";
+    let e = "";
+    const g = build((add, link) => {
+      const inp = add({ ...newInputData("in.mkv"), probe });
+      e = add(enc);
+      mux = add(newMuxerData(path));
+      link(inp, "f0", e, "in");
+      link(e, "out", mux, "");
+      if (audio) link(inp, "p1", mux, "");
+    });
+    return { g, mux, e };
+  };
+
+  it("knows image files and which encoder each needs", () => {
+    expect(resolveFormat({ format: "auto", path: "C:/o/frames_%05d.png" })).toBe("image2");
+    expect(checkImageCodec("C:/o/f_%05d.jpg", "mjpeg").level).toBe("ok");
+    expect(checkImageCodec("C:/o/f_%05d.png", "h264").level).toBe("error");
+    expect(checkCompat("image2", "audio", "aac").message).toMatch(/image sequence cannot carry audio/);
+  });
+
+  it("asks for a frame number and the matching encoder, with fixes", () => {
+    const { g, mux, e } = imageGraph("C:/o/frames.png", encoder("video", "libx264"), PROBE, true);
+    const ds = run(g);
+    const pattern = ds.find((d) => /frame number/.test(d.message));
+    expect(pattern?.fix).toMatchObject({ nodeId: mux, patch: { path: "C:/o/frames_%05d.png" } });
+    const codec = ds.find((d) => /needs the png encoder/.test(d.message));
+    expect(codec?.fix).toMatchObject({ nodeId: paramsIdOf(e), patch: { codec: "png" } });
+    expect(ds.some((d) => d.severity === "error" && /cannot carry audio/.test(d.message))).toBe(true);
+  });
+
+  it("accepts a pattern or a single image", () => {
+    expect(run(imageGraph("C:/o/frames_%05d.png").g).filter((d) => d.severity === "error")).toEqual([]);
+    const { g, mux } = imageGraph("C:/o/still.png");
+    (g.nodes.find((n) => n.id === mux)!.data as ReturnType<typeof newMuxerData>).singleImage = true;
+    expect(run(g).filter((d) => d.severity === "error")).toEqual([]);
+  });
+
+  it("warns when 10-bit video goes into 8-bit images; the yuv to rgb step is only info", () => {
+    const png = encoder("video", "png");
+    const { g, e } = imageGraph("C:/o/f_%05d.png", { ...png, params: { ...png.params, pix_fmt: "rgb24" } }, PROBE10);
+    const ds = run(g);
+    expect(ds.find((d) => /8 bits per channel/.test(d.message))?.fix).toMatchObject({ nodeId: paramsIdOf(e), patch: { params: { pix_fmt: "rgb48be" } } });
+    expect(ds.find((d) => /converted for the images/.test(d.message))?.severity).toBe("info");
+    expect(run(imageGraph("C:/o/f_%05d.png", encoder("video", "png"), PROBE10).g).some((d) => /8 bits/.test(d.message))).toBe(false);
+    expect(run(imageGraph("C:/o/f_%05d.jpg", encoder("video", "mjpeg"), PROBE10).g).some((d) => /JPEG keeps only 8 bits/.test(d.message))).toBe(true);
   });
 });

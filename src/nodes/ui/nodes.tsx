@@ -210,7 +210,7 @@ function MuxerNode({ id, data, selected }: NodeProps<AppNode>) {
       outputs={[]}
       inputMedia={(p) => labels.get(p.id)?.media}
     >
-      <div className="muted small">{fmt ? `container: ${fmt}` : d.path ? "unknown container" : "Set a file name in the inspector →"}</div>
+      <div className="muted small">{fmt === "image2" ? (d.singleImage ? "single image" : "image sequence") : fmt ? `container: ${fmt}` : d.path ? "unknown container" : "Set a file name in the inspector →"}</div>
     </NodeShell>
   );
 }

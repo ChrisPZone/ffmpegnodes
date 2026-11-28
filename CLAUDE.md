@@ -36,6 +36,10 @@ ffmpegnodes: a Tauri 2 + React 19 + React Flow (@xyflow/react) node editor that 
   - An encoder without parameters is an error, and its stream is left out of the command.
   - Quick fixes for encoder settings must target `paramsId`, not the encoder.
 - **Muxer slots** always end with one spare slot. After adding or removing wires to an Output, call `normalizeMuxerSlots`.
+- **Image sequence outputs:** `.png` / `.tif` / `.dpx` / `.exr` / `.jpg` … resolve to the `image2` muxer (`EXT_FORMAT` in `src/validation/compat.ts`).
+  - They carry video only, and the encoder must match the extension (`checkImageCodec`, `IMAGE_EXT_CODEC`).
+  - The path needs a `%d` frame pattern unless the Output's `singleImage` is on (`-frames:v 1 -update 1`). The quick fix uses `toFramePattern` (`src/model/sequence.ts`). `startNumber` becomes `-start_number`.
+  - Curated image encoders have `image: true` (`src/nodes/defs/encoders.ts`) and appear under "Image sequences" in the encoder picker. Their 8-bit vs deep formats are `EIGHT_BIT_IMAGE_FMTS` / `DEEP_IMAGE_PIX_FMT`.
 - **Generic filters** (`defId: "generic"`) store their parsed `ffmpeg -h filter=` help in node data. Use `filterDefOf(d)` to get a `FilterDef` for any filter node.
 - **Help popups** (`src/inspector/HelpPopover.tsx`) show the bundled ffmpeg docs. Both JSON files are loaded lazily on first use.
   - `src/docs/texi.ts` parses the texinfo files. It has no imports, so the generator script can run it with plain node.

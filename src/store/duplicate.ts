@@ -5,10 +5,13 @@ import { PARAMS_PAD } from "../nodes/defs";
 
 export const DUPLICATE_OFFSET = 40;
 
-/** "C:/v/out.mp4" → "C:/v/out-2.mp4" (next number not in `taken`). */
+/**
+ * "C:/v/out.mp4" → "C:/v/out-2.mp4" (next number not in `taken`). An image sequence keeps its
+ * frame number at the end: "frames_%05d.png" → "frames-2_%05d.png".
+ */
 export function nextFreePath(path: string, taken: Set<string>): string {
   if (!path.trim()) return path;
-  const m = /^(.*?)(?:-(\d+))?(\.[^./\\]*)?$/.exec(path)!;
+  const m = /^(.*?)(?:-(\d+))?([_. -]?%0?\d*d[^/\\]*)$/.exec(path) ?? /^(.*?)(?:-(\d+))?(\.[^./\\]*)?$/.exec(path)!;
   const stem = m[1];
   const ext = m[3] ?? "";
   for (let i = Math.max(2, Number(m[2] ?? 1) + 1); ; i++) {

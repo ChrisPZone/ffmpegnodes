@@ -1,6 +1,7 @@
 // Browser-only stand-in for the Rust backend. Probes are invented from the file extension.
 import type { Capabilities, ProbeResult, StreamInfo } from "../model/types";
 import { extOf, isSequencePattern } from "../model/sequence";
+import { EXT_FORMAT } from "../validation/compat";
 import { FILTERS } from "../nodes/defs/filters";
 import type { JobHandlers } from "./ffmpeg";
 import { MOCK_FILTER_HELP, MOCK_FILTERS } from "./mockFilterHelp";
@@ -8,11 +9,11 @@ import { MOCK_FILTER_HELP, MOCK_FILTERS } from "./mockFilterHelp";
 const CAPS: Capabilities = {
   version: "ffmpeg version mock (browser mode — run inside Tauri for the real thing)",
   encoders: [
-    ...[["libx264", "h264"], ["libx265", "hevc"], ["libsvtav1", "av1"], ["libvpx-vp9", "vp9"], ["h264_nvenc", "h264"], ["hevc_nvenc", "hevc"], ["prores_ks", "prores"], ["gif", "gif"]].map(([name, codec]) => ({ name, codec, media: "video" as const, description: name })),
+    ...[["libx264", "h264"], ["libx265", "hevc"], ["libsvtav1", "av1"], ["libvpx-vp9", "vp9"], ["h264_nvenc", "h264"], ["hevc_nvenc", "hevc"], ["prores_ks", "prores"], ["gif", "gif"], ["png", "png"], ["tiff", "tiff"], ["dpx", "dpx"], ["exr", "exr"], ["mjpeg", "mjpeg"]].map(([name, codec]) => ({ name, codec, media: "video" as const, description: name })),
     ...[["aac", "aac"], ["libopus", "opus"], ["libmp3lame", "mp3"], ["flac", "flac"], ["ac3", "ac3"], ["eac3", "eac3"], ["alac", "alac"], ["pcm_s16le", "pcm_s16le"], ["pcm_s24le", "pcm_s24le"], ["pcm_f32le", "pcm_f32le"]].map(([name, codec]) => ({ name, codec, media: "audio" as const, description: name })),
     ...[["mov_text", "mov_text"], ["srt", "subrip"], ["ass", "ass"], ["webvtt", "webvtt"]].map(([name, codec]) => ({ name, codec, media: "subtitle" as const, description: name })),
   ],
-  muxers: ["mp4", "mov", "matroska", "webm", "mpegts", "mp3", "flac", "wav", "ogg", "adts", "srt", "gif"].map((name) => ({ name, description: name })),
+  muxers: ["mp4", "mov", "matroska", "webm", "mpegts", "mp3", "flac", "wav", "ogg", "adts", "srt", "gif", "image2"].map((name) => ({ name, description: name })),
   filters: [
     ...FILTERS.map((f) => ({ name: f.ffName, io: f.media === "audio" ? "A->A" : "V->V", description: f.description })),
     ...MOCK_FILTERS.filter((m) => !FILTERS.some((f) => f.ffName === m.name)),
@@ -169,7 +170,7 @@ function mockOutputLog(args: string[]): string[] {
   const codecOf = (enc: string) => (enc === "copy" ? "h264" : CAPS.encoders.find((e) => e.name === enc)?.codec ?? enc);
   const out = args[args.length - 1] ?? "out.mp4";
   const ext = out.split(".").pop() ?? "mp4";
-  const lines = [`Output #0, ${ext === "mkv" ? "matroska" : ext}, to '${out}':`, "  Metadata:", "    encoder         : Lavf-mock"];
+  const lines = [`Output #0, ${EXT_FORMAT[ext.toLowerCase()] ?? ext}, to '${out}':`, "  Metadata:", "    encoder         : Lavf-mock"];
   let i = 0;
   for (let k = 0; k < args.length - 1; k++) {
     const a = args[k];

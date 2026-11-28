@@ -28,6 +28,20 @@ export function isSequencePattern(path: string): boolean {
   return /(^|[^%])(%%)*%0?\d*d/.test(splitPath(path).name);
 }
 
+/**
+ * An output path with a frame number for each image: "C:/out/frames.png" → "C:/out/frames_%05d.png".
+ * A literal % in the name is escaped; a path that already has a number placeholder is kept.
+ */
+export function toFramePattern(path: string, digits = 5): string {
+  if (isSequencePattern(path)) return path;
+  const { dir, name } = splitPath(path);
+  const dot = name.lastIndexOf(".");
+  const stem = (dot > 0 ? name.slice(0, dot) : name).replace(/%/g, "%%");
+  const ext = dot > 0 ? name.slice(dot) : "";
+  const sep = !stem || /[_. -]$/.test(stem) ? "" : "_";
+  return `${dir}${stem}${sep}%0${digits}d${ext}`;
+}
+
 /** The last run of digits in the name, before the extension. */
 export function numberedName(name: string): { prefix: string; digits: string; suffix: string } | null {
   const dot = name.lastIndexOf(".");

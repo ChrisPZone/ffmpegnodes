@@ -497,6 +497,42 @@ describe.skipIf(!ENABLED)("real ffmpeg", () => {
     expect(Number(p.format.duration)).toBeLessThan(1);
   }, 60_000);
 
+  it("writes 16-bit PNG, 10-bit DPX and float EXR sequences from 10-bit video", () => {
+    const src = join(dir, "ten.mkv");
+    run("ffmpeg", ["-hide_banner", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=25", "-frames:v", "6",
+      "-vf", "format=yuv420p10le", "-c:v", "libx265", "-x265-params", "log-level=error", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", src]);
+    const srcProbe = probe(src);
+    expect(srcProbe.streams[0].pix_fmt).toBe("yuv420p10le");
+
+    const cases = [
+      { codec: "png", ext: "png", want: "rgb48be" },
+      { codec: "dpx", ext: "dpx", want: "gbrp10le" },
+      { codec: "exr", ext: "exr", want: "gbrpf32le" },
+    ];
+    for (const c of cases) {
+      const outDir = join(dir, `seq-${c.ext}`);
+      mkdirSync(outDir);
+      const g = new G();
+      const inp = g.add({ ...newInputData(src), probe: srcProbe });
+      const base = encoder("video", c.codec);
+      const enc = g.add({ ...base, params: { ...base.params, pix_fmt: c.want } });
+      const mux = g.add({ ...newMuxerData(join(outDir, `frames_%05d.${c.ext}`)), startNumber: "1001" });
+      g.link(inp, "f0", enc, "in");
+      g.link(enc, "out", mux);
+      const ser = serialize(g.graph);
+      expect(validate(g.graph, ser, negotiate(g.graph)).filter((d) => d.severity === "error")).toEqual([]);
+      const r = spawnSync("ffmpeg", ["-hide_banner", "-y", "-nostats", "-progress", "pipe:1", ...ser.args], { encoding: "utf8" });
+      expect(r.status, r.stderr.slice(-1500)).toBe(0);
+      const files = readdirSync(outDir).sort();
+      expect(files).toHaveLength(6);
+      expect(files[0]).toBe(`frames_01001.${c.ext}`);
+      expect(probe(join(outDir, files[0])).streams[0].pix_fmt).toBe(c.want);
+      // what the job popup's Size tile gets for image2
+      const sizes = [...r.stdout.matchAll(/^total_size=(.*)$/gm)].map((m) => m[1]);
+      console.log(`${c.ext}: total_size ${sizes.at(-1)}`);
+    }
+  }, 120_000);
+
   it("job popups read the output streams from real ffmpeg stderr", () => {
     const out = join(dir, "popup.mkv");
     const r = spawnSync(

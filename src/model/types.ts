@@ -256,6 +256,10 @@ export interface MuxerNodeData {
   faststart: boolean;
   /** -shortest: stop when the shortest stream ends (e.g. a looped image with audio). */
   shortest?: boolean;
+  /** Image sequences: number of the first file (-start_number); "" = 1. */
+  startNumber?: string;
+  /** Image outputs: write one still (-frames:v 1 -update 1) instead of a numbered sequence. */
+  singleImage?: boolean;
   metadata: KeyValue[];
   /** Ordered input slots; order = output stream order. Always ends with one unconnected spare. */
   slots: MuxSlot[];
